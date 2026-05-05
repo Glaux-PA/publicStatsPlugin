@@ -1,9 +1,19 @@
 <?php
+
 /**
  * @file plugins/generic/publicStats/controllers/PublicStatisticsHandler.php
  *
+ * Copyright (c) 2026 Glaux Publicaciones Académicas, S.L.
+ * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
+ *
  * @class PublicStatisticsHandler
- * @brief Main handler for public statistics display
+ * @ingroup plugins_generic_publicStats
+ *
+ * @brief Main handler for the public statistics page.
+ *
+ * Hosts the `/total` HTML endpoint plus the JSON endpoints consumed by the
+ * dashboard JavaScript. Heavy lifting is delegated to the services in
+ * services/; the traits group endpoints by feature area.
  */
 
 declare(strict_types=1);
@@ -16,8 +26,10 @@ use APP\template\TemplateManager;
 use PKP\core\PKPRequest;
 use PKP\plugins\PluginRegistry;
 
-// Plugin classes
+// Plugin
+use APP\plugins\generic\publicStats\PublicStatsPlugin;
 use APP\plugins\generic\publicStats\classes\InputValidator;
+use APP\plugins\generic\publicStats\classes\Logger;
 use APP\plugins\generic\publicStats\classes\PublicStatsConstants;
 use APP\plugins\generic\publicStats\classes\ColorHelper;
 
@@ -30,6 +42,8 @@ use APP\plugins\generic\publicStats\services\AuthorReviewerStatsService;
 use APP\plugins\generic\publicStats\services\IssueStatsService;
 use APP\plugins\generic\publicStats\services\SectionStatsService;
 use APP\plugins\generic\publicStats\services\AuthorStatsService;
+use APP\plugins\generic\publicStats\services\LanguageStatsService;
+use APP\plugins\generic\publicStats\services\CsvExporter;
 use APP\plugins\generic\publicStats\services\OpenAlexService;
 use APP\plugins\generic\publicStats\services\EnrichedStatsService;
 
@@ -58,7 +72,7 @@ class PublicStatisticsHandler extends Handler
     // Properties
     // ========================================
     
-    private ?object $plugin = null;
+    private PublicStatsPlugin $plugin;
     private StatisticsService $statsService;
     private ArticleStatsService $articleService;
     private EditorialStatsService $editorialService;
@@ -67,8 +81,10 @@ class PublicStatisticsHandler extends Handler
     private IssueStatsService $issueService;
     private SectionStatsService $sectionService;
     private AuthorStatsService $authorStatsService;
+    private LanguageStatsService $languageStatsService;
     private OpenAlexService $openalexService;
     private EnrichedStatsService $enrichedService;
+    private CsvExporter $csvExporter;
 
     // ========================================
     // Constructor
@@ -80,9 +96,13 @@ class PublicStatisticsHandler extends Handler
     public function __construct()
     {
         parent::__construct();
-        
-        $this->plugin = PluginRegistry::getPlugin('generic', 'publicstatsplugin');
-        
+
+        $plugin = PluginRegistry::getPlugin('generic', 'publicstatsplugin');
+        if (!$plugin instanceof PublicStatsPlugin) {
+            throw new \RuntimeException('publicStats plugin is not registered or disabled.');
+        }
+        $this->plugin = $plugin;
+
         // Initialize all services
         $this->statsService = app(StatisticsService::class);
         $this->articleService = app(ArticleStatsService::class);
@@ -92,8 +112,10 @@ class PublicStatisticsHandler extends Handler
         $this->issueService = app(IssueStatsService::class);
         $this->sectionService = app(SectionStatsService::class);
         $this->authorStatsService = app(AuthorStatsService::class);
+        $this->languageStatsService = app(LanguageStatsService::class);
         $this->openalexService = app(OpenAlexService::class);
-        $this->enrichedService = new EnrichedStatsService();
+        $this->enrichedService = app(EnrichedStatsService::class);
+        $this->csvExporter = app(CsvExporter::class);
     }
 
     // ========================================
@@ -117,8 +139,10 @@ class PublicStatisticsHandler extends Handler
         $selectedYear = InputValidator::validateYear($request->getUserVar('year'));
         $templateMgr = TemplateManager::getManager($request);
 
-        // Get color settings
-        $colorVariants = $this->getColorSettings($context->getId());
+        $contextId = $context->getId();
+        $colorVariants = $this->getColorSettings($contextId);
+        $enabledSubsections = $this->getEnabledSubsections($contextId);
+        $defaultSection = $this->getDefaultSection($enabledSubsections);
 
         $templateMgr->assign([
             'pageTitleTranslated' => __('plugins.generic.publicStats.statistics'),
@@ -130,6 +154,11 @@ class PublicStatisticsHandler extends Handler
             'primaryColorDark' => $colorVariants['dark'],
             'primaryColorDarker' => $colorVariants['darker'],
             'primaryColorRgb' => $colorVariants['rgb'],
+            // Section visibility
+            'enabledSubsections' => $enabledSubsections,
+            'defaultSection'     => $defaultSection,
+            // Language-section issue filter
+            'availableIssues'    => $this->languageStatsService->getPublishedIssues($contextId),
         ]);
 
         $this->setupAssets($templateMgr, $request);
@@ -155,6 +184,48 @@ class PublicStatisticsHandler extends Handler
     }
 
     /**
+     * Get enabled subsection ids from plugin settings, defaulting to all.
+     */
+    private function getEnabledSubsections(int $contextId): array
+    {
+        $all = array_merge(...array_values(array_map('array_keys', PublicStatsConstants::SUBSECTIONS)));
+        $saved = $this->plugin->getSetting($contextId, 'enabledSubsections');
+
+        // Never saved → enable everything.
+        if (!is_array($saved)) {
+            return $all;
+        }
+
+        $stillValid = array_values(array_intersect($saved, $all));
+
+        // Auto-include subsections added in code after the last save.
+        // Without a snapshot we can't distinguish "newly added" from "user unchecked",
+        // so fall back to the saved list verbatim.
+        $known = $this->plugin->getSetting($contextId, 'knownSubsections');
+        if (!is_array($known)) {
+            return $stillValid;
+        }
+
+        $newlyAdded = array_values(array_diff($all, $known));
+        return array_values(array_merge($stillValid, $newlyAdded));
+    }
+
+    /**
+     * Return the first enabled subsection id (following sidebar order).
+     */
+    private function getDefaultSection(array $enabledSubsections): string
+    {
+        foreach (PublicStatsConstants::SUBSECTIONS as $groupSections) {
+            foreach (array_keys($groupSections) as $sectionId) {
+                if (in_array($sectionId, $enabledSubsections, true)) {
+                    return $sectionId;
+                }
+            }
+        }
+        return 'monthly-trends';
+    }
+
+    /**
      * Get monthly statistics with optional year and section filters
      *
      * @param array $args URL arguments
@@ -170,34 +241,31 @@ class PublicStatisticsHandler extends Handler
         }
 
         $year = InputValidator::validateYear($request->getUserVar('year'));
-        $sectionId = InputValidator::validateSectionId($request, $request->getUserVar('sectionId'));
 
         try {
             $contextId = $context->getId();
-            $dateRanges = $this->getDateRanges($year, $sectionId);
-            
+            $dateRanges = $this->getDateRanges($year);
+
             $cacheKey = sprintf(
-                'monthly_%d_%s_%s_%s',
+                'monthly_%d_%s_%s',
                 $contextId,
                 $dateRanges['start'],
-                $dateRanges['end'],
-                $sectionId ?? 'all'
+                $dateRanges['end']
             );
-            
+
             $data = Cache::remember(
                 $cacheKey,
                 PublicStatsConstants::CACHE_TTL_INTERNAL,
                 fn() => $this->statsService->getMonthlyStats(
                     $contextId,
                     $dateRanges['start'],
-                    $dateRanges['end'],
-                    $sectionId
+                    $dateRanges['end']
                 )
             );
             
             $this->outputJson($data);
         } catch (\Exception $e) {
-            error_log("Error in monthly stats: " . $e->getMessage());
+            Logger::error("Error in monthly stats", $e);
             $this->outputError('Error loading monthly statistics', 500);
         }
     }
@@ -218,14 +286,9 @@ class PublicStatisticsHandler extends Handler
         }
 
         $contextId = $context->getId();
-        $sectionId = InputValidator::validateSectionId($request, $request->getUserVar('sectionId'));
-        
-        $cacheKey = sprintf(
-            'annual_stats_%d_%s',
-            $contextId,
-            $sectionId ?? 'all'
-        );
-        
+
+        $cacheKey = sprintf('annual_stats_%d', $contextId);
+
         try {
             $data = Cache::remember(
                 $cacheKey,
@@ -240,7 +303,7 @@ class PublicStatisticsHandler extends Handler
             
             $this->outputJson($data);
         } catch (\Exception $e) {
-            error_log("Error in annual stats: " . $e->getMessage());
+            Logger::error("Error in annual stats", $e);
             $this->outputError('Error loading annual statistics', 500);
         }
     }
@@ -271,8 +334,44 @@ class PublicStatisticsHandler extends Handler
             
             $this->outputJson($data);
         } catch (\Exception $e) {
-            error_log("Error in countries: " . $e->getMessage());
+            Logger::error("Error in countries", $e);
             $this->outputError('Error loading country statistics', 500);
+        }
+    }
+
+    /**
+     * Get language distribution statistics for published articles.
+     * Optional issueId filter via request var.
+     *
+     * @param array $args URL arguments
+     * @param PKPRequest $request Current request
+     * @return void Outputs JSON
+     */
+    public function languages(array $args, PKPRequest $request): void
+    {
+        $context = $request->getContext();
+        if (!$context) {
+            $this->outputError('Context not found', 404);
+            return;
+        }
+
+        $contextId = $context->getId();
+        $issueIdRaw = $request->getUserVar('issueId');
+        $issueId = (is_numeric($issueIdRaw) && (int) $issueIdRaw > 0) ? (int) $issueIdRaw : null;
+
+        $cacheKey = sprintf('language_stats_%d_%s', $contextId, $issueId ?? 'all');
+
+        try {
+            $data = Cache::remember(
+                $cacheKey,
+                PublicStatsConstants::CACHE_TTL_INTERNAL,
+                fn() => $this->languageStatsService->getLanguageStats($contextId, $issueId)
+            );
+
+            $this->outputJson($data);
+        } catch (\Exception $e) {
+            Logger::error("Error in language stats", $e);
+            $this->outputError('Error loading language statistics', 500);
         }
     }
 
@@ -281,28 +380,21 @@ class PublicStatisticsHandler extends Handler
     // ========================================
 
     /**
-     * Get date ranges based on selected year and section
+     * Get date ranges based on selected year.
      *
      * @param string|null $selectedYear Year in YYYY format
-     * @param int|null $sectionId Optional section filter
      * @return array Date ranges with start/end keys
      */
-    protected function getDateRanges(?string $selectedYear, ?int $sectionId = null): array
+    protected function getDateRanges(?string $selectedYear): array
     {
-        $ranges = [
-            'start' => $selectedYear 
-                ? $selectedYear . '0101' 
+        return [
+            'start' => $selectedYear
+                ? $selectedYear . '0101'
                 : PublicStatsConstants::MIN_YEAR . '0101',
-            'end' => $selectedYear 
-                ? $selectedYear . '1231' 
+            'end' => $selectedYear
+                ? $selectedYear . '1231'
                 : date('Ymd', strtotime('yesterday')),
         ];
-        
-        if ($sectionId !== null) {
-            $ranges['sectionId'] = $sectionId;
-        }
-        
-        return $ranges;
     }
 
     /**
@@ -325,10 +417,10 @@ class PublicStatisticsHandler extends Handler
      */
     protected function outputJson(mixed $data): void
     {
+        // Let OJS finish naturally so shutdown hooks (queue runner, cache flush) run.
         header('Content-Type: application/json; charset=UTF-8');
         header('X-Content-Type-Options: nosniff');
         echo json_encode($data, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
-        exit;
     }
 
     /**
@@ -359,9 +451,34 @@ class PublicStatisticsHandler extends Handler
     {
         $baseUrl = $request->getBaseUrl() . '/' . $this->plugin->getPluginPath();
 
+        // Load order matters: helpers → feature modules → orchestrator.
+        // Each script writes to window.PublicStats; statistics.js destructures it.
+        $jsBase = $baseUrl . '/templates/js';
+
+        $templateMgr->addJavaScript(
+            'publicStatsHelpers',
+            $jsBase . '/statistics-helpers.js',
+            ['contexts' => 'frontend', 'priority' => TemplateManager::STYLE_SEQUENCE_CORE]
+        );
+
+        $modules = [
+            'publicStatsApi'     => '/statistics-api.js',
+            'publicStatsCharts'  => '/statistics-charts.js',
+            'publicStatsTables'  => '/statistics-tables.js',
+            'publicStatsMaps'    => '/statistics-maps.js',
+            'publicStatsImpact'  => '/statistics-impact.js',
+        ];
+        foreach ($modules as $handle => $path) {
+            $templateMgr->addJavaScript(
+                $handle,
+                $jsBase . $path,
+                ['contexts' => 'frontend']
+            );
+        }
+
         $templateMgr->addJavaScript(
             'publicStatsScript',
-            $baseUrl . '/templates/js/statistics.js',
+            $jsBase . '/statistics.js',
             ['contexts' => 'frontend']
         );
 

@@ -3,8 +3,7 @@
 /**
  * @file plugins/generic/publicStats/services/OpenAlexService.php
  *
- * Copyright (c) 2024 Simon Fraser University
- * Copyright (c) 2024 John Willinsky
+ * Copyright (c) 2026 Glaux Publicaciones Académicas, S.L.
  * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
  *
  * @class OpenAlexService
@@ -22,43 +21,226 @@ declare(strict_types=1);
 
 namespace APP\plugins\generic\publicStats\services;
 
+use APP\core\Application;
 use APP\facades\Repo;
-use PKP\submission\PKPSubmission;
-use Illuminate\Support\Facades\Cache;
+use APP\plugins\generic\publicStats\classes\Logger;
 use APP\plugins\generic\publicStats\classes\PublicStatsConstants;
+use APP\plugins\generic\publicStats\jobs\ComputeOpenAlexAggregateJob;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use PKP\submission\PKPSubmission;
+
 class OpenAlexService
 {
     private const API_BASE = 'https://api.openalex.org';
-    private string $contactEmail;  
-    
+    private ?string $contactEmail;
+
     /**
      * Constructor - Initialize contact email from plugin settings
      */
-    public function __construct()  
+    public function __construct()
     {
         $this->contactEmail = $this->getContactEmail();
     }
 
-    private function getContactEmail(): string
+    private function getContactEmail(): ?string
     {
         try {
-            $request = \Application::get()->getRequest();
+            $request = Application::get()->getRequest();
             $context = $request?->getContext();
-            
+
             if (!$context) {
-                return 'noreply@example.com';
+                return null;
             }
-            
+
             $plugin = \PKP\plugins\PluginRegistry::getPlugin('generic', 'publicstatsplugin');
-            
-            return $plugin?->getSetting($context->getId(), 'openAlexEmail') 
-                ?? $context->getData('contactEmail') 
-                ?? 'noreply@example.com';
+
+            $email = $plugin?->getSetting($context->getId(), 'openAlexEmail')
+                ?: $context->getData('contactEmail');
+
+            return $email ?: null;
         } catch (\Exception $e) {
-            error_log("OpenAlexService: Could not get contact email: " . $e->getMessage());
-            return 'noreply@example.com';
+            Logger::error('OpenAlex: could not resolve contact email', $e);
+            return null;
         }
+    }
+
+    /**
+     * Perform a GET against the OpenAlex API with retries and exponential backoff.
+     *
+     * Retries on transient failures (network errors, 429, 5xx). Returns the
+     * decoded JSON body on success, or null when all attempts fail.
+     * Non-final failures are logged as warnings.
+     *
+     * @param string $url     Full request URL (without query params).
+     * @param array  $query   Query parameters to append.
+     * @param int    $timeout Per-attempt timeout, in seconds.
+     * @param string $context Short tag used in log lines (e.g. "DOI 10.x/y").
+     * @return array|null     Decoded JSON body, or null on permanent failure.
+     */
+    private function httpGetWithRetry(
+        string $url,
+        array $query = [],
+        int $timeout = 10,
+        string $context = ''
+    ): ?array {
+        $attempts = 3;
+        $backoffMs = [250, 1000, 2000]; // exponential-ish: 250ms, 1s, 2s
+
+        for ($attempt = 1; $attempt <= $attempts; $attempt++) {
+            try {
+                $response = Http::timeout($timeout)
+                    ->withHeaders($this->apiHeaders())
+                    ->get($url, $query);
+
+                $status = $response->status();
+
+                if ($response->successful()) {
+                    return $response->json();
+                }
+
+                // 4xx (other than 429) are permanent - don't retry.
+                $isTransient = $status === 429 || $status >= 500;
+                if (!$isTransient) {
+                    Logger::error("OpenAlex {$context}: non-retryable HTTP {$status}");
+                    return null;
+                }
+
+                if ($attempt < $attempts) {
+                    Logger::warning("OpenAlex {$context}: transient HTTP {$status}, retrying (attempt {$attempt}/{$attempts})");
+                    usleep($backoffMs[$attempt - 1] * 1000);
+                    continue;
+                }
+
+                Logger::error("OpenAlex {$context}: HTTP {$status} after {$attempts} attempts");
+                return null;
+            } catch (\Throwable $e) {
+                if ($attempt < $attempts) {
+                    Logger::warning("OpenAlex {$context}: network error, retrying (attempt {$attempt}/{$attempts})", $e);
+                    usleep($backoffMs[$attempt - 1] * 1000);
+                    continue;
+                }
+
+                Logger::error("OpenAlex {$context}: failed after {$attempts} attempts", $e);
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Build HTTP headers for OpenAlex API requests.
+     * Only includes the 'mailto' header when a real contact email is available.
+     */
+    private function apiHeaders(): array
+    {
+        return $this->contactEmail ? ['mailto' => $this->contactEmail] : [];
+    }
+
+    /**
+     * Cache key that holds the computed aggregate for a given type/context.
+     */
+    public static function cacheKeyFor(string $type, int $contextId): string
+    {
+        return "openalex_aggregate_{$type}_{$contextId}";
+    }
+
+    /**
+     * Lock key to prevent duplicate job dispatch.
+     */
+    public static function lockKeyFor(string $type, int $contextId): string
+    {
+        return self::cacheKeyFor($type, $contextId) . '_lock';
+    }
+
+    /**
+     * TTL for computed aggregates. Shared by the job and the service.
+     */
+    public static function aggregateCacheTtl(): int
+    {
+        return PublicStatsConstants::CACHE_TTL_EXTERNAL;
+    }
+
+    /**
+     * Return cached aggregate data if present; otherwise enqueue the
+     * background job (locked to prevent duplicate dispatch) and return the
+     * placeholder. The worker fills the cache; later requests get real data.
+     */
+    public function cachedOrEnqueue(string $type, int $contextId, mixed $placeholder): mixed
+    {
+        $cacheKey = self::cacheKeyFor($type, $contextId);
+        $cached = Cache::get($cacheKey);
+        if ($cached !== null) {
+            return $cached;
+        }
+
+        $lockKey = self::lockKeyFor($type, $contextId);
+        // Cache::add returns true only when the key didn't exist, which makes
+        // this our "first request wins, subsequent requests short-circuit" gate.
+        $lockTtl = max(120, (int) (PublicStatsConstants::CACHE_TTL_EXTERNAL / 24)); // ~1h default
+        if (Cache::add($lockKey, 1, $lockTtl)) {
+            ComputeOpenAlexAggregateJob::dispatch($contextId, $type);
+        }
+
+        return $placeholder;
+    }
+
+    // Chunked aggregates: state shape under cacheKeyFor($type, $contextId)
+    // is { processed, total, accumulator, is_complete }. Wrappers only expose
+    // 'accumulator' once is_complete is true.
+
+    public function getChunkedState(string $type, int $contextId): ?array
+    {
+        return Cache::get(self::cacheKeyFor($type, $contextId));
+    }
+
+    public function putChunkedState(string $type, int $contextId, array $state): void
+    {
+        Cache::put(
+            self::cacheKeyFor($type, $contextId),
+            $state,
+            self::aggregateCacheTtl()
+        );
+    }
+
+    public function forgetChunkedState(string $type, int $contextId): void
+    {
+        Cache::forget(self::cacheKeyFor($type, $contextId));
+        Cache::forget(self::lockKeyFor($type, $contextId));
+    }
+
+    /**
+     * Wrapper-side dispatch. Skips if another dispatch is already in flight.
+     */
+    public function dispatchChunkJob(string $type, int $contextId): bool
+    {
+        $lockKey = self::lockKeyFor($type, $contextId);
+        if (Cache::add($lockKey, 1, 300)) {
+            ComputeOpenAlexAggregateJob::dispatch($contextId, $type);
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Re-dispatch from inside a running chunk job. Skips the lock on purpose:
+     * the wrapper still holds it and the chain would stop at the first chunk.
+     */
+    public function dispatchNextChunk(string $type, int $contextId): void
+    {
+        ComputeOpenAlexAggregateJob::dispatch($contextId, $type);
+    }
+
+    public static function chunkedPlaceholder(?array $state): array
+    {
+        return [
+            'is_computing' => true,
+            'progress' => [
+                'processed' => $state['processed'] ?? 0,
+                'total'     => $state['total'] ?? null,
+            ],
+        ];
     }
 
     /**
@@ -66,15 +248,20 @@ class OpenAlexService
      *
      * Strips control characters (line breaks, null bytes, etc.) that could
      * enable HTTP header injection, then URL-encodes the result for safe
-     * concatenation into API request URLs.
+     * concatenation into API request URLs. Returns null if the DOI is empty
+     * after sanitization so callers can skip the API call entirely.
      *
      * @param string $doi Raw DOI string
-     * @return string Sanitized and URL-encoded DOI
+     * @return string|null URL-encoded DOI, or null if the input is empty/invalid
      */
-    private function sanitizeDoi(string $doi): string
+    private function sanitizeDoi(string $doi): ?string
     {
         $doi = trim($doi);
         $doi = preg_replace('/[\r\n\x00-\x1f]/', '', $doi);
+
+        if ($doi === '' || $doi === null) {
+            return null;
+        }
 
         return urlencode($doi);
     }
@@ -83,29 +270,21 @@ class OpenAlexService
      */
     public function getWorkByDOI(string $doi): ?array
     {
+        $sanitizedDoi = $this->sanitizeDoi($doi);
+        if ($sanitizedDoi === null) {
+            return null;
+        }
+
         $cacheKey = "openalex_work_" . md5($doi);
-        
-        return Cache::remember($cacheKey, PublicStatsConstants::CACHE_TTL_EXTERNAL, function() use ($doi) {
-            try {
-                usleep(PublicStatsConstants::OPENALEX_RATE_LIMIT_DELAY);
-                
-                $url = self::API_BASE . '/works/doi:' . $this->sanitizeDoi($doi);
-                
-                $response = Http::timeout(10)
-                    ->withHeaders(['mailto' => $this->contactEmail])
-                    ->get($url);
-                
-                if (!$response->successful()) {
-                    error_log("OpenAlex API: Non-200 response for DOI {$doi}: " . $response->status());
-                    return null;
-                }
-                
-                return $response->json();
-                
-            } catch (\Exception $e) {
-                error_log("OpenAlex API error for DOI {$doi}: " . $e->getMessage());
-                return null;
-            }
+
+        return Cache::remember($cacheKey, PublicStatsConstants::CACHE_TTL_EXTERNAL, function () use ($doi, $sanitizedDoi) {
+            usleep(PublicStatsConstants::OPENALEX_RATE_LIMIT_DELAY);
+            return $this->httpGetWithRetry(
+                self::API_BASE . '/works/doi:' . $sanitizedDoi,
+                [],
+                10,
+                "DOI {$doi}"
+            );
         });
     }
     
@@ -141,62 +320,37 @@ class OpenAlexService
      */
     public function syncJournalByISSN(string $issn, int $limit = 200): array
     {
-        try {
-            usleep(PublicStatsConstants::OPENALEX_RATE_LIMIT_DELAY);
-            
-            $url = self::API_BASE . '/works';
-            
-            $response = Http::timeout(15)
-                ->withHeaders(['mailto' => $this->contactEmail])
-                ->get($url, [
-                    'filter' => 'primary_location.source.issn:' . $issn,
-                    'per-page' => $limit
-                ]);
+        usleep(PublicStatsConstants::OPENALEX_RATE_LIMIT_DELAY);
 
-            if (!$response->successful()) {
-                error_log("OpenAlex API: Failed to sync ISSN {$issn}");
-                return [];
-            }
+        $body = $this->httpGetWithRetry(
+            self::API_BASE . '/works',
+            [
+                'filter' => 'primary_location.source.issn:' . $issn,
+                'per-page' => $limit,
+            ],
+            15,
+            "ISSN {$issn}"
+        );
 
-            return $response->json()['results'] ?? [];
-            
-        } catch (\Exception $e) {
-            error_log("OpenAlex sync error for ISSN {$issn}: " . $e->getMessage());
-            return [];
-        }
+        return $body['results'] ?? [];
     }
     
     /**
      * Get topics for text (title + abstract)
      */
-   public function getTopicsForText(string $title, ?string $abstract = null): ?array
+    public function getTopicsForText(string $title, ?string $abstract = null): ?array
     {
         $cacheKey = "openalex_topics_" . md5($title . ($abstract ?? ''));
-        
-        return Cache::remember($cacheKey, PublicStatsConstants::CACHE_TTL_EXTERNAL, function() use ($title, $abstract) {
-            try {
-                usleep(PublicStatsConstants::OPENALEX_TEXT_RATE_LIMIT_DELAY);
-                
-                $url = self::API_BASE . '/text';
-                
-                $response = Http::timeout(15)
-                    ->withHeaders(['mailto' => $this->contactEmail])
-                    ->get($url, [
-                        'title' => $title,
-                        'abstract' => $abstract
-                    ]);
 
-                if (!$response->successful()) {
-                    error_log("OpenAlex API: Failed to fetch topics for text");
-                    return null;
-                }
+        return Cache::remember($cacheKey, PublicStatsConstants::CACHE_TTL_EXTERNAL, function () use ($title, $abstract) {
+            usleep(PublicStatsConstants::OPENALEX_TEXT_RATE_LIMIT_DELAY);
 
-                return $response->json();
-                
-            } catch (\Exception $e) {
-                error_log("OpenAlex /text API error: " . $e->getMessage());
-                return null;
-            }
+            return $this->httpGetWithRetry(
+                self::API_BASE . '/text',
+                ['title' => $title, 'abstract' => $abstract],
+                15,
+                '/text endpoint'
+            );
         });
     }
     
@@ -206,38 +360,54 @@ class OpenAlexService
     public function getCitingWorks(string $openalexId, int $limit = 50): array
     {
         $cacheKey = "openalex_citing_" . md5($openalexId);
-        
-        return Cache::remember($cacheKey, PublicStatsConstants::CACHE_TTL_EXTERNAL, function() use ($openalexId, $limit) {
-            try {
-                usleep(PublicStatsConstants::OPENALEX_RATE_LIMIT_DELAY);
-                
-                $url = self::API_BASE . '/works';
-                
-                $response = Http::timeout(10)
-                    ->withHeaders(['mailto' => $this->contactEmail])
-                    ->get($url, [
-                        'filter' => 'cites:' . $openalexId,
-                        'per-page' => $limit
-                    ]);
 
-                if (!$response->successful()) {
-                    error_log("OpenAlex API: Failed to fetch citing works for {$openalexId}");
-                    return [];
-                }
+        return Cache::remember($cacheKey, PublicStatsConstants::CACHE_TTL_EXTERNAL, function () use ($openalexId, $limit) {
+            usleep(PublicStatsConstants::OPENALEX_RATE_LIMIT_DELAY);
 
-                return $response->json()['results'] ?? [];
-                
-            } catch (\Exception $e) {
-                error_log("OpenAlex citing works error: " . $e->getMessage());
-                return [];
-            }
+            $body = $this->httpGetWithRetry(
+                self::API_BASE . '/works',
+                ['filter' => 'cites:' . $openalexId, 'per-page' => $limit],
+                10,
+                "citing {$openalexId}"
+            );
+
+            return $body['results'] ?? [];
         });
     }
     
-      /**
-     * Enrich context statistics with OpenAlex data
+    /**
+     * Enrich context statistics with OpenAlex data.
+     *
+     * Returns cached data if available; otherwise enqueues a background job
+     * to compute it and returns an empty placeholder so the caller doesn't
+     * block on hundreds of OpenAlex requests inside a web request.
      */
     public function enrichContextStatistics(int $contextId): array
+    {
+        return $this->cachedOrEnqueue(
+            ComputeOpenAlexAggregateJob::TYPE_ENRICH_CONTEXT,
+            $contextId,
+            [
+                'total_external_citations' => 0,
+                'avg_fwci' => 0,
+                'works_with_data' => 0,
+                'top_topics' => [],
+                'top_sdgs' => [],
+                'retracted_count' => 0,
+                'funded_works' => 0,
+                'processed_count' => 0,
+                'total_submissions' => 0,
+                'is_partial' => false,
+                'is_computing' => true,
+            ]
+        );
+    }
+
+    /**
+     * Synchronous computation of context enrichment. Called from the queue
+     * job. Can make hundreds of external calls.
+     */
+    public function enrichContextStatisticsSync(int $contextId): array
     {
         $submissions = Repo::submission()
             ->getCollector()
@@ -253,21 +423,28 @@ class OpenAlexService
             'top_sdgs' => [],
             'retracted_count' => 0,
             'funded_works' => 0,
+            'processed_count' => 0,
+            'total_submissions' => 0,
+            'is_partial' => false,
         ];
-        
+
         $fwciSum = 0;
         $topicsCount = [];
         $sdgsCount = [];
-        
+
         // Safety limit: Process maximum 1000 submissions to prevent timeout/memory issues
         $maxToProcess = PublicStatsConstants::MAX_SUBMISSIONS_TO_PROCESS;
         $processedCount = 0;
-        
+        $totalSubmissions = 0;
+
         foreach ($submissions as $submission) {
+            $totalSubmissions++;
+
             // Safety check: Stop if we've processed enough
             if ($processedCount >= $maxToProcess) {
-                error_log("OpenAlex enrichment: Stopped at {$maxToProcess} submissions for context {$contextId}");
-                break;
+                $stats['is_partial'] = true;
+                Logger::warning("OpenAlex enrichment truncated at {$maxToProcess} submissions for context {$contextId}");
+                continue;
             }
             
             $publication = $submission->getCurrentPublication();
@@ -312,14 +489,17 @@ class OpenAlexService
         if ($stats['works_with_data'] > 0) {
             $stats['avg_fwci'] = round($fwciSum / $stats['works_with_data'], 2);
         }
-        
+
         // Sort and get top 10
         arsort($topicsCount);
         $stats['top_topics'] = array_slice($topicsCount, 0, 10, true);
-        
+
         arsort($sdgsCount);
         $stats['top_sdgs'] = array_slice($sdgsCount, 0, 10, true);
-        
+
+        $stats['processed_count'] = $processedCount;
+        $stats['total_submissions'] = $totalSubmissions;
+
         return $stats;
     }
 
@@ -345,7 +525,7 @@ class OpenAlexService
             
             foreach ($submissions as $submission) {
                 if ($processedCount >= $maxToProcess) {
-                    error_log("Citations by country: Stopped at {$maxToProcess} submissions");
+                    Logger::warning("Citations-by-country truncated at {$maxToProcess} submissions");
                     break;
                 }
                 
@@ -395,33 +575,45 @@ class OpenAlexService
     }
 
     /**
-     * Get citing journals/sources for all published works
+     * Get citing journals/sources for all published works.
+     *
+     * Returns cached data when available; otherwise schedules a background
+     * job and returns an empty array so the request returns immediately.
      */
     public function getCitingJournals(int $contextId): array
     {
-        $cacheKey = "openalex_citing_journals_{$contextId}";
-        
-        return Cache::remember($cacheKey, PublicStatsConstants::CACHE_TTL_EXTERNAL, function() use ($contextId) {
-            $submissions = Repo::submission()
-                ->getCollector()
-                ->filterByContextIds([$contextId])
-                ->filterByStatus([PKPSubmission::STATUS_PUBLISHED])
-                ->getMany();
-            
-            $journalCitations = [];
-            $processedCount = 0;
-            $maxToProcess = min(PublicStatsConstants::MAX_SUBMISSIONS_TO_PROCESS, 200);
-            
-            // Get user groups for author strings
-            $userGroups = Repo::userGroup()->getCollector()
-                ->filterByContextIds([$contextId])
-                ->getMany();
-            
-            foreach ($submissions as $submission) {
-                if ($processedCount >= $maxToProcess) {
-                    error_log("Citing journals: Stopped at {$maxToProcess} submissions");
-                    break;
-                }
+        return $this->cachedOrEnqueue(
+            ComputeOpenAlexAggregateJob::TYPE_CITING_JOURNALS,
+            $contextId,
+            []
+        );
+    }
+
+    /**
+     * Synchronous computation of citing journals. Called from the queue job.
+     */
+    public function getCitingJournalsSync(int $contextId): array
+    {
+        $submissions = Repo::submission()
+            ->getCollector()
+            ->filterByContextIds([$contextId])
+            ->filterByStatus([PKPSubmission::STATUS_PUBLISHED])
+            ->getMany();
+
+        $journalCitations = [];
+        $processedCount = 0;
+        $maxToProcess = min(PublicStatsConstants::MAX_SUBMISSIONS_TO_PROCESS, 200);
+
+        // Get user groups for author strings
+        $userGroups = Repo::userGroup()->getCollector()
+            ->filterByContextIds([$contextId])
+            ->getMany();
+
+        foreach ($submissions as $submission) {
+            if ($processedCount >= $maxToProcess) {
+                Logger::warning("Citing-journals truncated at {$maxToProcess} submissions");
+                break;
+            }
                 
                 $publication = $submission->getCurrentPublication();
                 if (!$publication) continue;
@@ -523,46 +715,57 @@ class OpenAlexService
             }
             
    
-            usort($journalCitations, fn($a, $b) => $b['citations'] - $a['citations']);
-            
-            return array_values($journalCitations);
-        });
+        usort($journalCitations, fn($a, $b) => $b['citations'] - $a['citations']);
+
+        return array_values($journalCitations);
     }
 
     /**
-     * Get citing institutions for all published works
-     * 
+     * Get citing institutions for all published works.
+     *
      * Returns institutions whose authors have cited works from this journal,
      * aggregated by institution with citation counts.
-     * 
+     *
+     * Returns cached data when available; otherwise schedules a background
+     * job and returns an empty array so the request returns immediately.
+     *
      * @param int $contextId Journal/press ID
      * @return array Array of institutions with citation data
      */
     public function getCitingInstitutions(int $contextId): array
     {
-        $cacheKey = "openalex_citing_institutions_{$contextId}";
-        
-        return Cache::remember($cacheKey, PublicStatsConstants::CACHE_TTL_EXTERNAL, function() use ($contextId) {
-            $submissions = Repo::submission()
-                ->getCollector()
-                ->filterByContextIds([$contextId])
-                ->filterByStatus([PKPSubmission::STATUS_PUBLISHED])
-                ->getMany();
-            
-            $institutionCitations = [];
-            $processedCount = 0;
-            $maxToProcess = min(PublicStatsConstants::MAX_SUBMISSIONS_TO_PROCESS, 200);
-            
-            // Get user groups for author strings
-            $userGroups = Repo::userGroup()->getCollector()
-                ->filterByContextIds([$contextId])
-                ->getMany();
-            
-            foreach ($submissions as $submission) {
-                if ($processedCount >= $maxToProcess) {
-                    error_log("Citing institutions: Stopped at {$maxToProcess} submissions");
-                    break;
-                }
+        return $this->cachedOrEnqueue(
+            ComputeOpenAlexAggregateJob::TYPE_CITING_INSTITUTIONS,
+            $contextId,
+            []
+        );
+    }
+
+    /**
+     * Synchronous computation of citing institutions. Called from the queue job.
+     */
+    public function getCitingInstitutionsSync(int $contextId): array
+    {
+        $submissions = Repo::submission()
+            ->getCollector()
+            ->filterByContextIds([$contextId])
+            ->filterByStatus([PKPSubmission::STATUS_PUBLISHED])
+            ->getMany();
+
+        $institutionCitations = [];
+        $processedCount = 0;
+        $maxToProcess = min(PublicStatsConstants::MAX_SUBMISSIONS_TO_PROCESS, 200);
+
+        // Get user groups for author strings
+        $userGroups = Repo::userGroup()->getCollector()
+            ->filterByContextIds([$contextId])
+            ->getMany();
+
+        foreach ($submissions as $submission) {
+            if ($processedCount >= $maxToProcess) {
+                Logger::warning("Citing-institutions truncated at {$maxToProcess} submissions");
+                break;
+            }
                 
                 $publication = $submission->getCurrentPublication();
                 if (!$publication) continue;
@@ -663,10 +866,9 @@ class OpenAlexService
                 usort($institution['cited_articles'], fn($a, $b) => $b['times_cited'] - $a['times_cited']);
             }
             
-            // Sort by citation count (descending)
-            usort($institutionCitations, fn($a, $b) => $b['citations'] - $a['citations']);
-            
-            return array_values($institutionCitations);
-        });
+        // Sort by citation count (descending)
+        usort($institutionCitations, fn($a, $b) => $b['citations'] - $a['citations']);
+
+        return array_values($institutionCitations);
     }
 }

@@ -3,8 +3,7 @@
 /**
  * @file plugins/generic/publicStats/services/ArticleStatsService.php
  *
- * Copyright (c) 2024 Simon Fraser University
- * Copyright (c) 2024 John Willinsky
+ * Copyright (c) 2026 Glaux Publicaciones Académicas, S.L.
  * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
  *
  * @class ArticleStatsService
@@ -225,15 +224,41 @@ class ArticleStatsService
         string $metricType,
         int $limit
     ): array {
-        $results = [];
-
+        // Collect submission ids preserving record order and metric mapping.
+        $orderedIds = [];
+        $metricById = [];
         foreach ($records as $record) {
             if (!isset($record->submission_id)) {
                 continue;
             }
+            $id = (int) $record->submission_id;
+            if (!isset($metricById[$id])) {
+                $orderedIds[] = $id;
+            }
+            $metricById[$id] = $record->metric ?? 0;
+        }
 
-            $submission = Repo::submission()->get($record->submission_id);
-            if (!$submission || $submission->getData('contextId') !== $contextId) {
+        if (empty($orderedIds)) {
+            return [];
+        }
+
+        // Batch-load all submissions in a single query instead of one per record.
+        $collector = Repo::submission()->getCollector()->filterByContextIds([$contextId]);
+        $rows = $collector->getQueryBuilder()
+            ->whereIn('s.submission_id', $orderedIds)
+            ->get();
+
+        $submissionsById = [];
+        foreach ($rows as $row) {
+            $submission = Repo::submission()->dao->fromRow($row);
+            $submissionsById[$submission->getId()] = $submission;
+        }
+
+        $dispatcher = $request->getDispatcher();
+        $results = [];
+        foreach ($orderedIds as $id) {
+            $submission = $submissionsById[$id] ?? null;
+            if (!$submission) {
                 continue;
             }
 
@@ -246,16 +271,16 @@ class ArticleStatsService
                 'submissionId' => $submission->getId(),
                 'title' => $publication->getLocalizedTitle(),
                 'authors' => $publication->getAuthorString($userGroups),
-                $metricType => $record->metric ?? 0,
+                $metricType => $metricById[$id],
                 'datePublished' => $publication->getData('datePublished'),
-                'urlPublished' => $request->getDispatcher()->url(
+                'urlPublished' => $dispatcher->url(
                     $request,
                     Application::ROUTE_PAGE,
                     null,
                     'article',
                     'view',
                     $submission->getBestId()
-                )
+                ),
             ];
 
             if (count($results) >= $limit) {

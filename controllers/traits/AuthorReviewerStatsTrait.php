@@ -3,8 +3,7 @@
 /**
  * @file plugins/generic/publicStats/controllers/traits/AuthorReviewerStatsTrait.php
  *
- * Copyright (c) 2024 Simon Fraser University
- * Copyright (c) 2024 John Willinsky
+ * Copyright (c) 2026 Glaux Publicaciones Académicas, S.L.
  * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
  *
  * @brief Trait providing author and reviewer statistics HTTP endpoints.
@@ -19,6 +18,7 @@ namespace APP\plugins\generic\publicStats\controllers\traits;
 
 use PKP\core\PKPRequest;
 use APP\plugins\generic\publicStats\classes\InputValidator;
+use APP\plugins\generic\publicStats\classes\Logger;
 use APP\plugins\generic\publicStats\classes\PublicStatsConstants;
 use Illuminate\Support\Facades\Cache;
 
@@ -47,7 +47,7 @@ trait AuthorReviewerStatsTrait
             
             $this->outputJson($data);
         } catch (\Exception $e) {
-            error_log("Error in authorsByCountry: " . $e->getMessage());
+            Logger::error("Error in authorsByCountry", $e);
             $this->outputError('Error loading authors by country', 500);
         }
     }
@@ -75,7 +75,7 @@ trait AuthorReviewerStatsTrait
             
             $this->outputJson($data);
         } catch (\Exception $e) {
-            error_log("Error in authorsByInstitution: " . $e->getMessage());
+            Logger::error("Error in authorsByInstitution", $e);
             $this->outputError('Error loading authors by institution', 500);
         }
     }
@@ -103,7 +103,7 @@ trait AuthorReviewerStatsTrait
             
             $this->outputJson($data);
         } catch (\Exception $e) {
-            error_log("Error in reviewersByCountry: " . $e->getMessage());
+            Logger::error("Error in reviewersByCountry", $e);
             $this->outputError('Error loading reviewers by country', 500);
         }
     }
@@ -131,7 +131,7 @@ trait AuthorReviewerStatsTrait
             
             $this->outputJson($data);
         } catch (\Exception $e) {
-            error_log("Error in reviewersByInstitution: " . $e->getMessage());
+            Logger::error("Error in reviewersByInstitution", $e);
             $this->outputError('Error loading reviewers by institution', 500);
         }
     }
@@ -166,7 +166,7 @@ trait AuthorReviewerStatsTrait
             
             $this->outputJson($data);
         } catch (\Exception $e) {
-            error_log("Error in authorsList: " . $e->getMessage());
+            Logger::error("Error in authorsList", $e);
             $this->outputError('Error loading authors list', 500);
         }
     }
@@ -193,7 +193,7 @@ trait AuthorReviewerStatsTrait
         try {
             $contextId = $context->getId();
             $year = InputValidator::validateYear($request->getUserVar('year'));
-            $dateRanges = $this->getDateRanges($year, null);
+            $dateRanges = $this->getDateRanges($year);
             
             $cacheKey = sprintf(
                 "author_stats_%d_%s_%s_%s",
@@ -217,7 +217,7 @@ trait AuthorReviewerStatsTrait
             
             $this->outputJson($data);
         } catch (\Exception $e) {
-            error_log("Error in authorStats: " . $e->getMessage());
+            Logger::error("Error in authorStats", $e);
             $this->outputError('Error loading author statistics', 500);
         }
     }
@@ -247,7 +247,7 @@ trait AuthorReviewerStatsTrait
             
             $this->outputJson($data);
         } catch (\Exception $e) {
-            error_log("Error in authorsListForStats: " . $e->getMessage());
+            Logger::error("Error in authorsListForStats", $e);
             $this->outputError('Error loading authors list for statistics', 500);
         }
     }

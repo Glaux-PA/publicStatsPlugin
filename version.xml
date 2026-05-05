@@ -3,8 +3,7 @@
 <!--
   * version.xml
   *
-  * Copyright (c) 2017-2023 Simon Fraser University
-  * Copyright (c) 2017-2023 John Willinsky
+  * Copyright (c) 2026 Glaux Publicaciones Académicas, S.L.
   * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
   *
   * Plugin version information.
@@ -12,7 +11,7 @@
 <version>
 	<application>publicStats</application>
 	<type>plugins.generic</type>
-	<release>1.0.0.0</release>
-	<date>2025-06-10</date>
+	<release>1.1.0.0</release>
+	<date>2026-04-27</date>
 	<class>PublicStatsPlugin</class>
 </version>

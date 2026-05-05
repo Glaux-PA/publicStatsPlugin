@@ -3,8 +3,7 @@
 /**
  * @file plugins/generic/publicStats/controllers/traits/EnrichedStatsTrait.php
  *
- * Copyright (c) 2024 Simon Fraser University
- * Copyright (c) 2024 John Willinsky
+ * Copyright (c) 2026 Glaux Publicaciones Académicas, S.L.
  * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
  *
  * @brief Trait providing OpenAlex-enriched statistics HTTP endpoints.
@@ -20,6 +19,7 @@ namespace APP\plugins\generic\publicStats\controllers\traits;
 use PKP\core\PKPRequest;
 use APP\plugins\generic\publicStats\classes\PublicStatsConstants;
 use APP\plugins\generic\publicStats\classes\InputValidator;
+use APP\plugins\generic\publicStats\classes\Logger;
 use Illuminate\Support\Facades\Cache;
 
 trait EnrichedStatsTrait
@@ -47,7 +47,7 @@ trait EnrichedStatsTrait
 
             $this->outputJson($data);
         } catch (\Exception $e) {
-            error_log("Error in totalEnriched: " . $e->getMessage());
+            Logger::error("Error in totalEnriched", $e);
             $this->outputError('Error loading enriched statistics', 500);
         }
     }
@@ -75,7 +75,7 @@ trait EnrichedStatsTrait
 
             $this->outputJson($data);
         } catch (\Exception $e) {
-            error_log("Error in externalCitations: " . $e->getMessage());
+            Logger::error("Error in externalCitations", $e);
             $this->outputError('Error loading external citations', 500);
         }
     }
@@ -94,17 +94,14 @@ trait EnrichedStatsTrait
         try {
             $contextId = $context->getId();
             $limit = InputValidator::validateLimit($request->getUserVar('limit'), 20, 100);
-            $cacheKey = "top_cited_{$contextId}_{$limit}";
 
-            $data = Cache::remember(
-                $cacheKey,
-                PublicStatsConstants::CACHE_TTL_INTERNAL * 48,
-                fn() => $this->enrichedService->getTopCitedArticles($request, $contextId, $limit)
-            );
+            // The service caches via the chunked state itself; wrapping it in
+            // Cache::remember would freeze the "is_computing" placeholder.
+            $data = $this->enrichedService->getTopCitedArticles($request, $contextId, $limit);
 
             $this->outputJson($data);
         } catch (\Exception $e) {
-            error_log("Error in topCitedArticles: " . $e->getMessage());
+            Logger::error("Error in topCitedArticles", $e);
             $this->outputError('Error loading top cited articles', 500);
         }
     }
@@ -121,18 +118,10 @@ trait EnrichedStatsTrait
         }
 
         try {
-            $contextId = $context->getId();
-            $cacheKey = "topics_distribution_{$contextId}";
-
-            $data = Cache::remember(
-                $cacheKey,
-                PublicStatsConstants::CACHE_TTL_INTERNAL * 48,
-                fn() => $this->enrichedService->getThematicProfile($contextId)
-            );
-
+            $data = $this->enrichedService->getThematicProfile($context->getId());
             $this->outputJson($data);
         } catch (\Exception $e) {
-            error_log("Error in topicsDistribution: " . $e->getMessage());
+            Logger::error("Error in topicsDistribution", $e);
             $this->outputError('Error loading topics distribution', 500);
         }
     }
@@ -160,7 +149,7 @@ trait EnrichedStatsTrait
 
             $this->outputJson($data);
         } catch (\Exception $e) {
-            error_log("Error in fundingSources: " . $e->getMessage());
+            Logger::error("Error in fundingSources", $e);
             $this->outputError('Error loading funding sources', 500);
         }
     }
@@ -188,7 +177,7 @@ trait EnrichedStatsTrait
 
             $this->outputJson($data);
         } catch (\Exception $e) {
-            error_log("Error in collaboration: " . $e->getMessage());
+            Logger::error("Error in collaboration", $e);
             $this->outputError('Error loading collaboration metrics', 500);
         }
     }
@@ -238,7 +227,7 @@ trait EnrichedStatsTrait
                 'fwci' => $metrics['fwci']
             ]);
         } catch (\Exception $e) {
-            error_log("Error in articleCitationTimeline: " . $e->getMessage());
+            Logger::error("Error in articleCitationTimeline", $e);
             $this->outputError('Error loading citation timeline', 500);
         }
     }
@@ -266,7 +255,7 @@ trait EnrichedStatsTrait
 
             $this->outputJson($data);
         } catch (\Exception $e) {
-            error_log("Error in citationsByYear: " . $e->getMessage());
+            Logger::error("Error in citationsByYear", $e);
             $this->outputError('Error loading citations by year', 500);
         }
     }
@@ -295,7 +284,7 @@ trait EnrichedStatsTrait
 
             $this->outputJson($data);
         } catch (\Exception $e) {
-            error_log("Error in topCited: " . $e->getMessage());
+            Logger::error("Error in topCited", $e);
             $this->outputError('Error loading top cited articles', 500);
         }
     }
@@ -315,7 +304,7 @@ trait EnrichedStatsTrait
             $data = $this->enrichedService->getCitationEvolution($context->getId());
             $this->outputJson($data);
         } catch (\Exception $e) {
-            error_log("Error in citationEvolution: " . $e->getMessage());
+            Logger::error("Error in citationEvolution", $e);
             $this->outputError('Error loading citation evolution', 500);
         }
     }
@@ -335,7 +324,7 @@ trait EnrichedStatsTrait
             $data = $this->enrichedService->getOpenAccessStats($context->getId());
             $this->outputJson($data);
         } catch (\Exception $e) {
-            error_log("Error in openAccessStats: " . $e->getMessage());
+            Logger::error("Error in openAccessStats", $e);
             $this->outputError('Error loading open access statistics', 500);
         }
     }
@@ -355,7 +344,7 @@ trait EnrichedStatsTrait
             $data = $this->enrichedService->getThematicProfile($context->getId());
             $this->outputJson($data);
         } catch (\Exception $e) {
-            error_log("Error in thematicProfile: " . $e->getMessage());
+            Logger::error("Error in thematicProfile", $e);
             $this->outputError('Error loading thematic profile', 500);
         }
     }
@@ -382,7 +371,7 @@ trait EnrichedStatsTrait
 
             $this->outputJson($data);
         } catch (\Exception $e) {
-            error_log("Error in citationsByCountry: " . $e->getMessage());
+            Logger::error("Error in citationsByCountry", $e);
             $this->outputError('Error loading citations by country', 500);
         }
     }
@@ -410,7 +399,7 @@ trait EnrichedStatsTrait
 
             $this->outputJson($data);
         } catch (\Exception $e) {
-            error_log("Error in citingJournals: " . $e->getMessage());
+            Logger::error("Error in citingJournals", $e);
             $this->outputError('Error loading citing journals', 500);
         }
     }
@@ -438,7 +427,7 @@ trait EnrichedStatsTrait
 
             $this->outputJson($data);
         } catch (\Exception $e) {
-            error_log("Error in citingInstitutions: " . $e->getMessage());
+            Logger::error("Error in citingInstitutions", $e);
             $this->outputError('Error loading citing institutions', 500);
         }
     }

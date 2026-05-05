@@ -3,8 +3,7 @@
 /**
  * @file plugins/generic/publicStats/services/StatisticsService.php
  *
- * Copyright (c) 2024 Simon Fraser University
- * Copyright (c) 2024 John Willinsky
+ * Copyright (c) 2026 Glaux Publicaciones Académicas, S.L.
  * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
  *
  * @class StatisticsService
@@ -24,6 +23,8 @@ namespace APP\plugins\generic\publicStats\services;
 use APP\core\Services;
 use APP\statistics\StatisticsHelper;
 use APP\core\Application;
+use APP\plugins\generic\publicStats\classes\Logger;
+use APP\plugins\generic\publicStats\classes\PublicStatsConstants;
 use Sokil\IsoCodes\IsoCodesFactory;
 
 class StatisticsService extends BaseStatsService
@@ -132,15 +133,16 @@ class StatisticsService extends BaseStatsService
      * @param int $contextId Journal/press ID
      * @param string|null $dateStart Start date in Ymd format
      * @param string|null $dateEnd End date in Ymd format
-     * @param int $minYear Minimum year to include (default: 2015)
+     * @param int|null $minYear Minimum year to include (defaults to PublicStatsConstants::MIN_YEAR)
      * @return array Annual statistics array
      */
     public function getAnnualStats(
         int $contextId,
         ?string $dateStart = null,
         ?string $dateEnd = null,
-        int $minYear = 2015
+        ?int $minYear = null
     ): array {
+        $minYear ??= PublicStatsConstants::MIN_YEAR;
         $statsService = Services::get('publicationStats');
 
         $baseParams = [
@@ -192,11 +194,12 @@ class StatisticsService extends BaseStatsService
      * Get country statistics.
      *
      * Returns access counts aggregated by country with localized names.
+     * Always returns an array, empty when there is no data.
      *
      * @param int $contextId Journal/press ID
-     * @return array|null Country statistics or null if no data
+     * @return array Country statistics (empty array if no data or on error)
      */
-    public function getCountryStatistics(int $contextId): ?array
+    public function getCountryStatistics(int $contextId): array
     {
         try {
             $geoStatsService = Services::get('geoStats');
@@ -220,7 +223,7 @@ class StatisticsService extends BaseStatsService
             );
 
             if ($totalCountries == 0) {
-                return null;
+                return [];
             }
 
             $countriesData = $geoStatsService->getTotals(
@@ -231,8 +234,8 @@ class StatisticsService extends BaseStatsService
             return $this->formatCountryData($countriesData);
 
         } catch (\Exception $e) {
-            error_log("Error retrieving geographic data: " . $e->getMessage());
-            return null;
+            Logger::error("Error retrieving geographic data", $e);
+            return [];
         }
     }
 
@@ -268,9 +271,9 @@ class StatisticsService extends BaseStatsService
      * Format country data with localized names.
      *
      * @param iterable $countriesData Raw country data from geo service
-     * @return array|null Formatted country data or null if empty
+     * @return array Possibly empty list of country rows
      */
-    private function formatCountryData(iterable $countriesData): ?array
+    private function formatCountryData(iterable $countriesData): array
     {
         $countryData = [];
 
@@ -299,6 +302,6 @@ class StatisticsService extends BaseStatsService
             ];
         }
 
-        return empty($countryData) ? null : $countryData;
+        return $countryData;
     }
 }

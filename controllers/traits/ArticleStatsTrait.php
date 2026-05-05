@@ -3,8 +3,7 @@
 /**
  * @file plugins/generic/publicStats/controllers/traits/ArticleStatsTrait.php
  *
- * Copyright (c) 2024 Simon Fraser University
- * Copyright (c) 2024 John Willinsky
+ * Copyright (c) 2026 Glaux Publicaciones Académicas, S.L.
  * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
  *
  * @brief Trait providing article statistics HTTP endpoints.
@@ -19,6 +18,7 @@ namespace APP\plugins\generic\publicStats\controllers\traits;
 
 use PKP\core\PKPRequest;
 use APP\plugins\generic\publicStats\classes\InputValidator;
+use APP\plugins\generic\publicStats\classes\Logger;
 use APP\plugins\generic\publicStats\classes\PublicStatsConstants;
 use Illuminate\Support\Facades\Cache;
 
@@ -39,7 +39,7 @@ trait ArticleStatsTrait
 
         try {
             $contextId = $context->getId();
-            $dateRanges = $this->getDateRanges($year, null);
+            $dateRanges = $this->getDateRanges($year);
             
             $cacheKey = sprintf(
                 "top_downloaded_%d_%s_%s",
@@ -62,7 +62,7 @@ trait ArticleStatsTrait
             
             $this->outputJson($data);
         } catch (\Exception $e) {
-            error_log("Error in topDownloaded: " . $e->getMessage());
+            Logger::error("Error in topDownloaded", $e);
             $this->outputError('Error loading top downloaded articles', 500);
         }
     }
@@ -82,7 +82,7 @@ trait ArticleStatsTrait
 
         try {
             $contextId = $context->getId();
-            $dateRanges = $this->getDateRanges($year, null);
+            $dateRanges = $this->getDateRanges($year);
             
             $cacheKey = sprintf(
                 "top_viewed_%d_%s_%s",
@@ -105,7 +105,7 @@ trait ArticleStatsTrait
             
             $this->outputJson($data);
         } catch (\Exception $e) {
-            error_log("Error in topViewed: " . $e->getMessage());
+            Logger::error("Error in topViewed", $e);
             $this->outputError('Error loading top viewed articles', 500);
         }
     }
@@ -137,7 +137,7 @@ trait ArticleStatsTrait
             
             $this->outputJson($data);
         } catch (\Exception $e) {
-            error_log("Error in recentDownloaded: " . $e->getMessage());
+            Logger::error("Error in recentDownloaded", $e);
             $this->outputError('Error loading recent downloads', 500);
         }
     }
@@ -169,7 +169,7 @@ trait ArticleStatsTrait
             
             $this->outputJson($data);
         } catch (\Exception $e) {
-            error_log("Error in recentViewed: " . $e->getMessage());
+            Logger::error("Error in recentViewed", $e);
             $this->outputError('Error loading recent views', 500);
         }
     }
@@ -189,7 +189,7 @@ trait ArticleStatsTrait
 
         try {
             $contextId = $context->getId();
-            $dateRanges = $this->getDateRanges($year, null);
+            $dateRanges = $this->getDateRanges($year);
             
             $cacheKey = sprintf(
                 "issues_%d_%s_%s",
@@ -211,7 +211,7 @@ trait ArticleStatsTrait
             
             $this->outputJson($data);
         } catch (\Exception $e) {
-            error_log("Error in issues: " . $e->getMessage());
+            Logger::error("Error in issues", $e);
             $this->outputError('Error loading issue statistics', 500);
         }
     }
@@ -231,7 +231,7 @@ trait ArticleStatsTrait
 
         try {
             $contextId = $context->getId();
-            $dateRanges = $this->getDateRanges($year, null);
+            $dateRanges = $this->getDateRanges($year);
             
             $cacheKey = sprintf(
                 "sections_%d_%s_%s",
@@ -252,7 +252,7 @@ trait ArticleStatsTrait
             
             $this->outputJson($data);
         } catch (\Exception $e) {
-            error_log("Error in sections: " . $e->getMessage());
+            Logger::error("Error in sections", $e);
             $this->outputError('Error loading section statistics', 500);
         }
     }
@@ -294,7 +294,7 @@ trait ArticleStatsTrait
             
             $this->outputJson($data);
         } catch (\Exception $e) {
-            error_log("Error in sectionsList: " . $e->getMessage());
+            Logger::error("Error in sectionsList", $e);
             $this->outputError('Error loading sections list', 500);
         }
     }
