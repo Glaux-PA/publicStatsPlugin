@@ -20,6 +20,7 @@ use PKP\form\validation\FormValidatorPost;
 use PKP\form\validation\FormValidatorCSRF;
 use APP\core\Application;
 use APP\template\TemplateManager;
+use APP\plugins\generic\publicStats\classes\ColorHelper;
 use APP\plugins\generic\publicStats\classes\PublicStatsConstants;
 
 class PublicStatsSettingsForm extends Form
@@ -27,8 +28,9 @@ class PublicStatsSettingsForm extends Form
     /** @var PublicStatsPlugin Plugin instance */
     private PublicStatsPlugin $plugin;
 
-    /** @var string Default primary color */
-    private const DEFAULT_PRIMARY_COLOR = '#8b2635';
+    // Default primary color lives in ColorHelper so settings form, handler,
+    // and any other consumer share a single source of truth.
+    private const DEFAULT_PRIMARY_COLOR = ColorHelper::DEFAULT_COLOR;
 
     /**
      * Constructor
@@ -56,7 +58,16 @@ class PublicStatsSettingsForm extends Form
 
         $allSubsections = array_merge(...array_values(array_map('array_keys', PublicStatsConstants::SUBSECTIONS)));
         $saved = $this->plugin->getSetting($contextId, 'enabledSubsections');
-        $this->setData('enabledSubsections', is_array($saved) ? $saved : $allSubsections);
+
+        if (!is_array($saved)) {
+            $enabled = $allSubsections;
+        } else {
+            $stillValid  = array_values(array_intersect($saved, $allSubsections));
+            $known       = $this->plugin->getSetting($contextId, 'knownSubsections');
+            $newlyAdded  = is_array($known) ? array_values(array_diff($allSubsections, $known)) : [];
+            $enabled     = array_values(array_merge($stillValid, $newlyAdded));
+        }
+        $this->setData('enabledSubsections', $enabled);
     }
 
     /**
@@ -74,8 +85,11 @@ class PublicStatsSettingsForm extends Form
     {
         $contextId = Application::get()->getRequest()->getContext()->getId();
 
-        // Save OpenAlex email
-        $this->plugin->updateSetting($contextId, 'openAlexEmail', trim($this->getData('openAlexEmail')));
+        // Save OpenAlex email - validate format and discard garbage so the
+        // polite-pool query param never carries a non-email string.
+        $emailRaw = trim((string) $this->getData('openAlexEmail'));
+        $email = ($emailRaw !== '' && filter_var($emailRaw, FILTER_VALIDATE_EMAIL)) ? $emailRaw : '';
+        $this->plugin->updateSetting($contextId, 'openAlexEmail', $email);
 
         // Save primary color
         $primaryColor = $this->getData('primaryColor');

@@ -451,6 +451,7 @@
             authorsByInstitution: null,
             reviewersByCountry: null,
             reviewersByInstitution: null,
+            reviewerList: null,
             firstDecisionStats: null,
             acceptancePublicationStats: null,
             authorStats: null,
@@ -463,6 +464,7 @@
             citationsByCountry: null,
             citingJournals: null,
             languageStats: null,
+            languageTrends: null,
         };
 
         var selectedYear = "{/literal}{$selectedYear}{literal}";
@@ -470,95 +472,8 @@
         var enabledSubsections = {/literal}{$enabledSubsections|json_encode}{literal};
         var defaultSection     = "{/literal}{$defaultSection}{literal}";
 
-        // Translation strings
-        var i18n = {
-            downloads: "{/literal}{translate key="plugins.generic.publicStats.downloads"}{literal}",
-            views: "{/literal}{translate key="plugins.generic.publicStats.views"}{literal}",
-            received: "{/literal}{translate key="plugins.generic.publicStats.received"}{literal}",
-            published: "{/literal}{translate key="plugins.generic.publicStats.published"}{literal}",
-            declined: "{/literal}{translate key="plugins.generic.publicStats.declined"}{literal}",
-            inProcess: "{/literal}{translate key="plugins.generic.publicStats.inProcess"}{literal}",
-            totalReceived: "{/literal}{translate key="plugins.generic.publicStats.totalReceived"}{literal}",
-            totalAccesses: "{/literal}{translate key="plugins.generic.publicStats.totalAccesses"}{literal}",
-            errorLoading: "{/literal}{translate key="plugins.generic.publicStats.errorLoading"}{literal}",
-            monthlyOverview: "{/literal}{translate key="plugins.generic.publicStats.monthlyOverview"}{literal}",
-            mostDownloadedArticles: "{/literal}{translate key="plugins.generic.publicStats.mostDownloadedArticles"}{literal}",
-            mostViewedArticles: "{/literal}{translate key="plugins.generic.publicStats.mostViewedArticles"}{literal}",
-            downloadsByIssue: "{/literal}{translate key="plugins.generic.publicStats.downloadsByIssue"}{literal}",
-            downloadsBySection: "{/literal}{translate key="plugins.generic.publicStats.downloadsBySection"}{literal}",
-            submissionsOverview: "{/literal}{translate key="plugins.generic.publicStats.submissionsOverview"}{literal}",
-            totalAuthors: "{/literal}{translate key="plugins.generic.publicStats.totalAuthors"}{literal}",
-            totalReviewers: "{/literal}{translate key="plugins.generic.publicStats.totalReviewers"}{literal}",
-            otherInstitutions: "{/literal}{translate key="plugins.generic.publicStats.otherInstitutions"}{literal}",
-            acceptancePublicationStats:"{/literal}{translate key="plugins.generic.publicStats.acceptancePublicationDaysTitle"}{literal}",
-            firstDecisionStats:"{/literal}{translate key="plugins.generic.publicStats.firstDecisionDaysTitle"}{literal}",
-            noDataAvailable: "{/literal}{translate key="plugins.generic.publicStats.noDataAvailable"}{literal}",
-            noDataMessage: "{/literal}{translate key="plugins.generic.publicStats.noDataMessage"}{literal}",
-            noAuthorsData: "{/literal}{translate key="plugins.generic.publicStats.noAuthorsData"}{literal}",
-            noReviewersData: "{/literal}{translate key="plugins.generic.publicStats.noReviewersData"}{literal}",
-            noInstitutionData: "{/literal}{translate key="plugins.generic.publicStats.noInstitutionData"}{literal}",
-            noMonthlyData: "{/literal}{translate key="plugins.generic.publicStats.noMonthlyData"}{literal}",
-            noAnnualData: "{/literal}{translate key="plugins.generic.publicStats.noAnnualData"}{literal}",
-            noIssueData: "{/literal}{translate key="plugins.generic.publicStats.noIssueData"}{literal}",
-            noSectionData: "{/literal}{translate key="plugins.generic.publicStats.noSectionData"}{literal}",
-            noEditorialData: "{/literal}{translate key="plugins.generic.publicStats.noEditorialData"}{literal}",
-            noEditorialAnnualData:"{/literal}{translate key="plugins.generic.publicStats.noEditorialAnnualData"}{literal}",
-            noDownloadsData: "{/literal}{translate key="plugins.generic.publicStats.noDownloadsData"}{literal}",
-            noViewsData: "{/literal}{translate key="plugins.generic.publicStats.noViewsData"}{literal}",
-            noGeographicData: "{/literal}{translate key="plugins.generic.publicStats.noGeographicData"}{literal}",
-            noRecentDownloadsData:"{/literal}{translate key="plugins.generic.publicStats.noRecentDownloadsData"}{literal}",
-            noRecentViewsData: "{/literal}{translate key="plugins.generic.publicStats.noRecentViewsData"}{literal}",
-            topCitedArticles: "{/literal}{translate key='plugins.generic.publicStats.topCitedArticles'}{literal}",
-            externalCitations: "{/literal}{translate key='plugins.generic.publicStats.externalCitations'}{literal}",
-            year: "{/literal}{translate key='plugins.generic.publicStats.year'}{literal}",
-            noCitationData: "{/literal}{translate key='plugins.generic.publicStats.noCitationData'}{literal}",
-            computingPlaceholder: "{/literal}{translate key='plugins.generic.publicStats.computingPlaceholder'}{literal}",
-            citationsPerYear: "{/literal}{translate key='plugins.generic.publicStats.citationsPerYear'}{literal}",
-            citationsReceived: "{/literal}{translate key='plugins.generic.publicStats.citationsReceived'}{literal}",
-            citationsReceivedInYear: "{/literal}{translate key='plugins.generic.publicStats.citationsReceivedInYear'}{literal}",
-            openAccessStats: "{/literal}{translate key='plugins.generic.publicStats.openAccessStats'}{literal}",
-            openAccess: "{/literal}{translate key='plugins.generic.publicStats.openAccess'}{literal}",
-            oaPercentage: "{/literal}{translate key='plugins.generic.publicStats.oaPercentage'}{literal}",
-            oaDistribution: "{/literal}{translate key='plugins.generic.publicStats.oaDistribution'}{literal}",
-            oaDiamond: "{/literal}{translate key='plugins.generic.publicStats.oaDiamond'}{literal}",
-            oaGold: "{/literal}{translate key='plugins.generic.publicStats.oaGold'}{literal}",
-            oaHybrid: "{/literal}{translate key='plugins.generic.publicStats.oaHybrid'}{literal}",
-            oaGreen: "{/literal}{translate key='plugins.generic.publicStats.oaGreen'}{literal}",
-            oaBronze: "{/literal}{translate key='plugins.generic.publicStats.oaBronze'}{literal}",
-            oaClosed: "{/literal}{translate key='plugins.generic.publicStats.oaClosed'}{literal}",
-            oaUnknown: "{/literal}{translate key='plugins.generic.publicStats.oaUnknown'}{literal}",
-            articlesAnalyzed: "{/literal}{translate key='plugins.generic.publicStats.articlesAnalyzed'}{literal}",
-            noOaData: "{/literal}{translate key='plugins.generic.publicStats.noOaData'}{literal}",
-            thematicProfile: "{/literal}{translate key='plugins.generic.publicStats.thematicProfile'}{literal}",
-            researchAreas: "{/literal}{translate key='plugins.generic.publicStats.researchAreas'}{literal}",
-            topResearchAreas: "{/literal}{translate key='plugins.generic.publicStats.topResearchAreas'}{literal}",
-            articlesInArea: "{/literal}{translate key='plugins.generic.publicStats.articlesInArea'}{literal}",
-            noThematicData: "{/literal}{translate key='plugins.generic.publicStats.noThematicData'}{literal}",
-            areaDistribution: "{/literal}{translate key='plugins.generic.publicStats.areaDistribution'}{literal}",
-            citationsByCountry: "{/literal}{translate key='plugins.generic.publicStats.citationsByCountry'}{literal}",
-            citationsFromCountry:"{/literal}{translate key='plugins.generic.publicStats.citationsFromCountry'}{literal}",
-            totalCitationsMap: "{/literal}{translate key='plugins.generic.publicStats.totalCitationsMap'}{literal}",
-            noCitationMapData: "{/literal}{translate key='plugins.generic.publicStats.noCitationMapData'}{literal}",
-            citingJournals:"{/literal}{translate key='plugins.generic.publicStats.citingJournals'}{literal}",
-            topCitingJournals:"{/literal}{translate key='plugins.generic.publicStats.topCitingJournals'}{literal}",
-            journalName: "{/literal}{translate key='plugins.generic.publicStats.journalName'}{literal}",
-            issn: "{/literal}{translate key='plugins.generic.publicStats.issn'}{literal}",
-            noCitingJournalsData:"{/literal}{translate key='plugins.generic.publicStats.noCitingJournalsData'}{literal}",
-            citationsFromJournal:"{/literal}{translate key='plugins.generic.publicStats.citationsFromJournal'}{literal}",
-            citedArticlesFromJournal:"{/literal}{translate key='plugins.generic.publicStats.citedArticlesFromJournal'}{literal}",
-            timesCited:"{/literal}{translate key='plugins.generic.publicStats.timesCited'}{literal}",
-            citationYear:"{/literal}{translate key='plugins.generic.publicStats.citationYear'}{literal}",
-            allTime:"{/literal}{translate key='plugins.generic.publicStats.allTime'}{literal}",
-            languageDistribution:"{/literal}{translate key='plugins.generic.publicStats.languageDistribution'}{literal}",
-            articleLanguages:"{/literal}{translate key='plugins.generic.publicStats.articleLanguages'}{literal}",
-            articlesByLanguage:"{/literal}{translate key='plugins.generic.publicStats.articlesByLanguage'}{literal}",
-            language:"{/literal}{translate key='plugins.generic.publicStats.language'}{literal}",
-            articles:"{/literal}{translate key='plugins.generic.publicStats.articles'}{literal}",
-            noLanguageData:"{/literal}{translate key='plugins.generic.publicStats.noLanguageData'}{literal}",
-            allIssues:"{/literal}{translate key='plugins.generic.publicStats.allIssues'}{literal}",
-            filterByIssue:"{/literal}{translate key='plugins.generic.publicStats.filterByIssue'}{literal}",
-
-        };
+        // Translation strings — JSON-encoded server-side so msgstr can contain " or \ safely.
+        var i18n = {/literal}{$publicStatsI18nJson nofilter}{literal};
     {/literal}
 </script>
 
@@ -611,6 +526,10 @@
                                 {translate key="plugins.generic.publicStats.languageDistribution"}</div>
                         </li>
                         <li class="menu-item">
+                            <div class="menu-link" data-section="language-trends" onclick="showSection('language-trends')">
+                                {translate key="plugins.generic.publicStats.languageTrends"}</div>
+                        </li>
+                        <li class="menu-item">
                             <div class="menu-link" data-section="geographic-distribution" onclick="showSection('geographic-distribution')">
                                 {translate key="plugins.generic.publicStats.geographicDistribution"}</div>
                         </li>
@@ -658,6 +577,11 @@
                         <li class="menu-item">
                             <div class="menu-link" data-section="reviewers-by-institution" onclick="showSection('reviewers-by-institution')">
                                 {translate key="plugins.generic.publicStats.reviewersByInstitution"}
+                            </div>
+                        </li>
+                        <li class="menu-item">
+                            <div class="menu-link" data-section="reviewer-list" onclick="showSection('reviewer-list')">
+                                {translate key="plugins.generic.publicStats.reviewerList"}
                             </div>
                         </li>
                         <li class="menu-item">
@@ -1051,6 +975,39 @@
                 </div>
             </div>
 
+            {* Language trends section *}
+            <div id="language-trends" class="content-section" style="display: none;">
+                <div class="content-header">
+                    <h1 class="content-title">{translate key="plugins.generic.publicStats.languageTrends"}</h1>
+                    <p class="content-subtitle">{translate key="plugins.generic.publicStats.languageTrendsDesc"}</p>
+                </div>
+                <div class="stats-grid">
+                    <div class="stats-card">
+                        <div class="card-header">
+                            <h2 class="card-title">{translate key="plugins.generic.publicStats.languageTrendsChart"}</h2>
+                            <button onclick="resetChartZoom('languageTrendsChart')"
+                                class="reset-zoom-btn">{translate key="plugins.generic.publicStats.resetZoom"}</button>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container" style="height: 400px;">
+                                <canvas id="languageTrendsChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="stats-card">
+                        <div class="card-header">
+                            <h2 class="card-title">{translate key="plugins.generic.publicStats.summary"}</h2>
+                        </div>
+                        <div class="card-body">
+                            <div id="languageTrendsSummary"
+                                style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px;">
+                                {* Populated by JavaScript *}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             {* Sections section *}
             <div id="general-sections" class="content-section" style="display: none;">
                 <div class="content-header">
@@ -1399,6 +1356,49 @@
                 </div>
             </div>
 
+            {* Reviewer list section *}
+            <div id="reviewer-list" class="content-section" style="display: none;">
+                <div class="year-selector-container">
+                    <label for="reviewerListYearFilter">{translate key="plugins.generic.publicStats.selectYear"}</label>
+                    <select id="reviewerListYearFilter" onchange="filterReviewerListByYear(this.value)">
+                        <option value="">{translate key="plugins.generic.publicStats.allTime"}</option>
+                        {foreach from=$availableYears item=year}
+                            <option value="{$year}">{$year}</option>
+                        {/foreach}
+                    </select>
+                </div>
+                <div class="content-header">
+                    <h1 class="content-title">{translate key="plugins.generic.publicStats.reviewerListTitle"}</h1>
+                    <p class="content-subtitle">{translate key="plugins.generic.publicStats.reviewerListDescription"}</p>
+                </div>
+                <div class="stats-grid">
+                    <div class="stats-card" style="grid-column: span 2;">
+                        <div class="card-header">
+                            <h2 class="card-title" id="reviewerListCardTitle">
+                                {translate key="plugins.generic.publicStats.reviewerListCardTitle"}
+                            </h2>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-container">
+                                <table class="stats-table">
+                                    <thead>
+                                        <tr>
+                                            <th>#</th>
+                                            <th>{translate key="plugins.generic.publicStats.name"}</th>
+                                            <th>{translate key="plugins.generic.publicStats.institution"}</th>
+                                            <th>{translate key="plugins.generic.publicStats.country"}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="reviewerListTableBody">
+                                        {* Populated by JavaScript *}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             {* First decision days section *}
             <div id="first-decision-stats" class="content-section" style="display: none;">
                 <div class="content-header">
@@ -1657,9 +1657,20 @@
                     {* Cited articles table *}
                     <div class="stats-card" style="margin-top: 30px;">
                         <div class="card-header">
-                            <h2 class="card-title">
-                                {translate key="plugins.generic.publicStats.topCitedArticles"}{if $selectedYear}
-                                ({$selectedYear}){/if}</h2>
+                            <h2 class="card-title" id="citedArticlesCardTitle">
+                                {translate key="plugins.generic.publicStats.topCitedArticles"}
+                            </h2>
+                            <div style="text-align: right;">
+                                <label for="citedArticlesYearFilter" style="margin-right: 10px;">
+                                    {translate key="plugins.generic.publicStats.selectYear"}
+                                </label>
+                                <select id="citedArticlesYearFilter" onchange="filterCitedArticlesByYear(this.value)">
+                                    <option value="all">{translate key="plugins.generic.publicStats.allTime"}</option>
+                                    {foreach from=$availableYears item=year}
+                                        <option value="{$year}">{$year}</option>
+                                    {/foreach}
+                                </select>
+                            </div>
                         </div>
                         <div class="card-body">
                             <div class="table-container">

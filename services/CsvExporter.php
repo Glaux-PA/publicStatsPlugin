@@ -319,6 +319,27 @@ class CsvExporter
         );
     }
 
+    public function reviewerList(int $contextId, ?string $year): array
+    {
+        $yearInt = $year !== null ? (int) $year : null;
+        $data    = $this->authorReviewerService->getReviewerList($contextId, $yearInt) ?? [];
+
+        $yearLabel = $year ?? 'all';
+        $filename  = "reviewer-list-{$yearLabel}.csv";
+        $headers   = ['Name', 'Institution', 'Country'];
+
+        $rows = [];
+        foreach ($data as $reviewer) {
+            $rows[] = [
+                $reviewer['fullName'],
+                $reviewer['affiliation'] ?? '',
+                $reviewer['country']     ?? '',
+            ];
+        }
+
+        return compact('filename', 'headers', 'rows');
+    }
+
     // ========================================
     // Issues / sections
     // ========================================
@@ -371,6 +392,29 @@ class CsvExporter
         ];
     }
 
+    public function languageTrends(int $contextId): array
+    {
+        $data = $this->languageService->getLanguageTrends($contextId);
+
+        $rows = [];
+        foreach ($data['labels'] ?? [] as $yearIdx => $year) {
+            foreach ($data['series'] ?? [] as $series) {
+                $rows[] = [
+                    $year,
+                    $series['code'] ?? '',
+                    $series['name'] ?? '',
+                    $series['data'][$yearIdx] ?? 0,
+                ];
+            }
+        }
+
+        return [
+            'filename' => 'language_trends_' . date('Y-m-d') . '.csv',
+            'headers'  => ['Year', 'Language Code', 'Language', 'Articles'],
+            'rows'     => $rows,
+        ];
+    }
+
     public function languages(int $contextId, ?int $issueId): array
     {
         $data = $this->languageService->getLanguageStats($contextId, $issueId);
@@ -417,22 +461,6 @@ class CsvExporter
             'filename' => 'top_cited_articles_' . date('Y-m-d') . '.csv',
             'headers' => ['Rank', 'Title', 'Authors', 'Year', 'Citations'],
             'rows' => $this->rankedArticleRows($articles, 'citations', true),
-        ];
-    }
-
-    public function fundingSources(int $contextId, int $limit): array
-    {
-        $data = $this->enrichedService->getFundingSources($contextId, $limit);
-
-        $rows = [];
-        foreach ($data as $item) {
-            $rows[] = [$item['funder'] ?? '', $item['count'] ?? 0];
-        }
-
-        return [
-            'filename' => 'funding_sources_' . date('Y-m-d') . '.csv',
-            'headers' => ['Funder', 'Publications Count'],
-            'rows' => $rows,
         ];
     }
 
@@ -483,21 +511,25 @@ class CsvExporter
 
     public function citationsByCountry(int $contextId): array
     {
-        $data = $this->enrichedService->getCitationsByCountry($contextId) ?? [];
-
+        $data = $this->enrichedService->getCitationsByCountry($contextId);
+        // The chunked service returns either an `is_computing` placeholder or
+        // the formatted list directly (no 'data' wrapper).
+        if (is_array($data) && !empty($data['is_computing'])) {
+            $this->assertReady($data, 'citations by country');
+        }
         $rows = [];
-        foreach ($data as $item) {
+        foreach (($data ?? []) as $item) {
             $rows[] = [
-                $item['country_code'] ?? '',
-                $item['country_name'] ?? '',
+                $item['country_code']    ?? '',
+                $item['country_name']    ?? '',
                 $item['citations_count'] ?? 0,
             ];
         }
 
         return [
             'filename' => 'citations_by_country_' . date('Y-m-d') . '.csv',
-            'headers' => ['Country Code', 'Country Name', 'Citations'],
-            'rows' => $rows,
+            'headers'  => ['Country Code', 'Country Name', 'Citations'],
+            'rows'     => $rows,
         ];
     }
 
@@ -519,28 +551,10 @@ class CsvExporter
         ];
     }
 
-    public function collaboration(int $contextId): array
-    {
-        $data = $this->enrichedService->getCollaborationMetrics($contextId);
-
-        return [
-            'filename' => 'collaboration_metrics_' . date('Y-m-d') . '.csv',
-            'headers' => ['Metric', 'Value'],
-            'rows' => [
-                ['Total Works Analyzed', $data['total_works'] ?? 0],
-                ['International Collaborations', $data['international_collaborations'] ?? 0],
-                ['Multi-Institution Works', $data['multi_institution'] ?? 0],
-                ['Avg Countries per Work', $data['avg_countries_per_work'] ?? 0],
-                ['Avg Institutions per Work', $data['avg_institutions_per_work'] ?? 0],
-                ['International Collaboration Rate (%)', $data['international_collaboration_rate'] ?? 0],
-                ['Multi-Institution Rate (%)', $data['multi_institution_rate'] ?? 0],
-            ],
-        ];
-    }
-
     public function citingJournals(PKPRequest $request, int $contextId, ?string $yearFilter): array
     {
         $response = $this->enrichedService->getCitingJournals($request, $contextId);
+        $this->assertReady($response, 'citing journals');
         $filter = $this->normalizeYearFilter($yearFilter);
         $journals = is_array($response) && is_array($response['journals'] ?? null) ? $response['journals'] : [];
 
@@ -718,7 +732,16 @@ class CsvExporter
         if ($yearFilter === null || $yearFilter === '' || $yearFilter === 'all') {
             return 'all';
         }
-        return $yearFilter;
+        // Strict: only accept a 4-digit year in a reasonable range. Anything
+        // else falls back to 'all' so unsanitised input from `?year=foo` can't
+        // leak weird characters into the CSV filename / Content-Disposition.
+        if (preg_match('/^\d{4}$/', $yearFilter)) {
+            $y = (int) $yearFilter;
+            if ($y >= 1900 && $y <= ((int) date('Y') + 1)) {
+                return $yearFilter;
+            }
+        }
+        return 'all';
     }
 
     /**

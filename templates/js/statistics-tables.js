@@ -57,6 +57,7 @@
           ).toLocaleString();
         });
       } catch (error) {
+        if (error && error.code === "STALE_REQUEST") return;
         console.error("Error loading downloads:", error);
         body.innerHTML = `<tr><td colspan="4" class="ps-error-message">${i18n.errorLoading}</td></tr>`;
       }
@@ -88,6 +89,7 @@
           row.insertCell(3).textContent = (article.views || 0).toLocaleString();
         });
       } catch (error) {
+        if (error && error.code === "STALE_REQUEST") return;
         console.error("Error loading views:", error);
         body.innerHTML = `<tr><td colspan="4" class="ps-error-message">${i18n.errorLoading}</td></tr>`;
       }
@@ -219,6 +221,50 @@
         row.insertCell(2).textContent = item.name;
         row.insertCell(3).textContent = item.count.toLocaleString();
       });
+    },
+
+    renderLanguageTrendsSummary() {
+      const div = document.getElementById("languageTrendsSummary");
+      if (!div) return;
+
+      const data = statsData.languageTrends;
+      if (!data || !data.labels || data.labels.length === 0) {
+        div.innerHTML = `<div class="ps-grid-span-2 ps-empty-message"><p>${
+          i18n.noLanguageTrendsData || "No data available"
+        }</p></div>`;
+        return;
+      }
+
+      const totalArticles = data.series.reduce(
+        (sum, s) => sum + s.data.reduce((a, b) => a + b, 0),
+        0
+      );
+      const languageCount = data.series.length;
+      const leadingLanguage = data.series[0]?.name || "—";
+      const years = data.labels;
+      const dataSpan =
+        years.length > 1
+          ? `${years[0]}–${years[years.length - 1]}`
+          : years[0] || "—";
+
+      div.innerHTML = `
+        <div class="ps-stat-box">
+          <div class="ps-stat-value ps-color-primary">${totalArticles.toLocaleString()}</div>
+          <div class="ps-stat-label">${i18n.totalArticles}</div>
+        </div>
+        <div class="ps-stat-box">
+          <div class="ps-stat-value ps-color-blue">${languageCount}</div>
+          <div class="ps-stat-label">${i18n.languagesIdentified}</div>
+        </div>
+        <div class="ps-stat-box">
+          <div class="ps-stat-value ps-color-primary" style="font-size:22px">${escapeHtml(leadingLanguage)}</div>
+          <div class="ps-stat-label">${i18n.leadingLanguage}</div>
+        </div>
+        <div class="ps-stat-box">
+          <div class="ps-stat-value ps-color-muted" style="font-size:22px">${escapeHtml(dataSpan)}</div>
+          <div class="ps-stat-label">${i18n.dataPeriod}</div>
+        </div>
+      `;
     },
 
     renderEditorialSummary() {
@@ -393,6 +439,27 @@
         ).innerHTML = `<span class="table-color-indicator" style="background-color: ${color}"></span>`;
         row.insertCell(2).textContent = item.institution;
         row.insertCell(3).textContent = item.total_count.toLocaleString();
+      });
+    },
+
+    renderReviewerListTable() {
+      const body = document.getElementById("reviewerListTableBody");
+      if (!body) return;
+
+      if (!statsData.reviewerList || statsData.reviewerList.length === 0) {
+        body.innerHTML = `<tr><td colspan="4" class="ps-empty-message">${
+          i18n.noReviewerListData
+        }</td></tr>`;
+        return;
+      }
+
+      body.innerHTML = "";
+      statsData.reviewerList.forEach((reviewer, index) => {
+        const row = body.insertRow();
+        row.insertCell(0).textContent = index + 1;
+        row.insertCell(1).textContent = reviewer.fullName;
+        row.insertCell(2).textContent = reviewer.affiliation || "-";
+        row.insertCell(3).textContent = reviewer.country || "-";
       });
     },
 

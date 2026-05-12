@@ -18,6 +18,17 @@
     baseUrl:
       window.location.origin + window.location.pathname.replace("/total", ""),
 
+    // Stale-response token. Bumped by callers that invalidate in-flight
+    // fetches (e.g. when the user changes the global year, or a section's
+    // own year filter). Each fetchData call captures the token at the
+    // request start and throws STALE_REQUEST if it differs at the end -
+    // the orchestrator swallows that error so a late response from a
+    // previous year never overwrites freshly-fetched UI state.
+    _token: 0,
+    invalidateInflight() {
+      this._token++;
+    },
+
     buildUrl(endpoint, params = {}) {
       const url = new URL(`${this.baseUrl}/${endpoint}`);
       Object.keys(params).forEach((key) => {
@@ -29,12 +40,20 @@
     },
 
     async fetchData(endpoint, params = {}) {
+      const myToken = this._token;
       try {
         const url = this.buildUrl(endpoint, params);
         const response = await fetch(url);
         if (!response.ok) throw new Error("Network response was not ok");
-        return await response.json();
+        const data = await response.json();
+        if (myToken !== this._token) {
+          const stale = new Error("STALE_REQUEST");
+          stale.code = "STALE_REQUEST";
+          throw stale;
+        }
+        return data;
       } catch (error) {
+        if (error.code === "STALE_REQUEST") throw error;
         console.error(`Error fetching ${endpoint}:`, error);
         throw error;
       }
@@ -169,6 +188,14 @@
       return data;
     },
 
+    async getReviewerList(year = null) {
+      if (statsData.reviewerList !== null && statsData.reviewerList !== undefined)
+        return statsData.reviewerList;
+      const data = await this.fetchData("reviewerList", { year });
+      statsData.reviewerList = data;
+      return data;
+    },
+
     async getReviewersByInstitution() {
       if (statsData.reviewersByInstitution)
         return statsData.reviewersByInstitution;
@@ -273,14 +300,23 @@
     async getCitationsByCountry() {
       if (statsData.citationsByCountry) return statsData.citationsByCountry;
       const data = await this.fetchData("citationsByCountry");
-      statsData.citationsByCountry = data;
+      // Skip caching while computing - the next call may already have the result.
+      if (data && !data.is_computing) statsData.citationsByCountry = data;
       return data;
     },
 
     async getCitingJournals() {
       if (statsData.citingJournals) return statsData.citingJournals;
       const data = await this.fetchData("citingJournals");
-      statsData.citingJournals = data;
+      // Skip caching while computing - the next call may already have the result.
+      if (data && !data.is_computing) statsData.citingJournals = data;
+      return data;
+    },
+
+    async getLanguageTrends() {
+      if (statsData.languageTrends) return statsData.languageTrends;
+      const data = await this.fetchData("languageTrends");
+      statsData.languageTrends = data;
       return data;
     },
 
@@ -375,6 +411,10 @@
       this.exportCsv("exportSections", year ? { year } : {});
     },
 
+    exportLanguageTrends() {
+      this.exportCsv("exportLanguageTrends");
+    },
+
     exportLanguages() {
       const issueId = document.getElementById("languageIssueFilter")?.value || null;
       this.exportCsv("exportLanguages", issueId ? { issueId } : {});
@@ -394,14 +434,6 @@
 
     exportAcceptancePublication(year = null) {
       this.exportCsv("exportAcceptancePublication", year ? { year } : {});
-    },
-
-    exportCollaboration() {
-      this.exportCsv("exportCollaboration");
-    },
-
-    exportFundingSources(limit = 100) {
-      this.exportCsv("exportFundingSources", { limit });
     },
 
     exportRecentDownloaded(limit = 100) {
@@ -534,6 +566,7 @@
         "general-issues": { type: "Issues", params: { year: currentYear } },
         "general-sections": { type: "Sections", params: { year: currentYear } },
         "general-languages": { type: "Languages" },
+        "language-trends": { type: "LanguageTrends" },
         "top-cited": { type: "TopCited", params: { limit: 100 } },
         "citation-evolution": { type: "CitationEvolution" },
         "open-access-stats": { type: "OpenAccessStats" },

@@ -8,8 +8,8 @@
  *
  * @brief Trait providing OpenAlex-enriched statistics HTTP endpoints.
  *
- * Contains handlers for citation metrics, thematic profiles,
- * open access statistics, and collaboration metrics.
+ * Contains handlers for citation metrics, thematic profiles, open access
+ * statistics, citing journals/institutions, and citations by country.
  */
 
 declare(strict_types=1);
@@ -39,11 +39,14 @@ trait EnrichedStatsTrait
             $contextId = $context->getId();
             $cacheKey = "total_enriched_{$contextId}";
 
-            $data = Cache::remember(
-                $cacheKey,
-                PublicStatsConstants::CACHE_TTL_INTERNAL * 12,
-                fn() => $this->enrichedService->getEnrichedContextStats($contextId)
-            );
+            // Don't use Cache::remember - it would freeze any is_computing placeholder.
+            $data = Cache::get($cacheKey);
+            if ($data === null) {
+                $data = $this->enrichedService->getEnrichedContextStats($contextId);
+                if (empty($data['external']['is_computing'])) {
+                    Cache::put($cacheKey, $data, PublicStatsConstants::CACHE_TTL_INTERNAL * 12);
+                }
+            }
 
             $this->outputJson($data);
         } catch (\Exception $e) {
@@ -67,11 +70,14 @@ trait EnrichedStatsTrait
             $contextId = $context->getId();
             $cacheKey = "external_citations_{$contextId}";
 
-            $data = Cache::remember(
-                $cacheKey,
-                PublicStatsConstants::CACHE_TTL_INTERNAL * 24,
-                fn() => $this->openalexService->enrichContextStatistics($contextId)
-            );
+            // Don't use Cache::remember - it would freeze any is_computing placeholder.
+            $data = Cache::get($cacheKey);
+            if ($data === null) {
+                $data = $this->enrichedService->getExternalEnrichmentStats($contextId);
+                if (empty($data['is_computing'])) {
+                    Cache::put($cacheKey, $data, PublicStatsConstants::CACHE_TTL_INTERNAL * 24);
+                }
+            }
 
             $this->outputJson($data);
         } catch (\Exception $e) {
@@ -127,62 +133,6 @@ trait EnrichedStatsTrait
     }
 
     /**
-     * Get funding sources
-     */
-    public function fundingSources(array $args, PKPRequest $request): void
-    {
-        $context = $request->getContext();
-        if (!$context) {
-            $this->outputError('Context not found', 404);
-            return;
-        }
-
-        try {
-            $contextId = $context->getId();
-            $cacheKey = "funding_sources_{$contextId}";
-
-            $data = Cache::remember(
-                $cacheKey,
-                PublicStatsConstants::CACHE_TTL_INTERNAL * 48,
-                fn() => $this->enrichedService->getFundingSources($contextId, 20)
-            );
-
-            $this->outputJson($data);
-        } catch (\Exception $e) {
-            Logger::error("Error in fundingSources", $e);
-            $this->outputError('Error loading funding sources', 500);
-        }
-    }
-
-    /**
-     * Get collaboration metrics
-     */
-    public function collaboration(array $args, PKPRequest $request): void
-    {
-        $context = $request->getContext();
-        if (!$context) {
-            $this->outputError('Context not found', 404);
-            return;
-        }
-
-        try {
-            $contextId = $context->getId();
-            $cacheKey = "collaboration_{$contextId}";
-
-            $data = Cache::remember(
-                $cacheKey,
-                PublicStatsConstants::CACHE_TTL_INTERNAL * 48,
-                fn() => $this->enrichedService->getCollaborationMetrics($contextId)
-            );
-
-            $this->outputJson($data);
-        } catch (\Exception $e) {
-            Logger::error("Error in collaboration", $e);
-            $this->outputError('Error loading collaboration metrics', 500);
-        }
-    }
-
-    /**
      * Get citation timeline for specific article
      */
     public function articleCitationTimeline(array $args, PKPRequest $request): void
@@ -229,34 +179,6 @@ trait EnrichedStatsTrait
         } catch (\Exception $e) {
             Logger::error("Error in articleCitationTimeline", $e);
             $this->outputError('Error loading citation timeline', 500);
-        }
-    }
-
-    /**
-     * Get citations by year
-     */
-    public function citationsByYear(array $args, PKPRequest $request): void
-    {
-        $context = $request->getContext();
-        if (!$context) {
-            $this->outputError('Context not found', 404);
-            return;
-        }
-
-        try {
-            $contextId = $context->getId();
-            $cacheKey = "citations_by_year_{$contextId}";
-
-            $data = Cache::remember(
-                $cacheKey,
-                PublicStatsConstants::CACHE_TTL_INTERNAL * 48,
-                fn() => $this->enrichedService->getAnnualCitationMetrics($contextId)
-            );
-
-            $this->outputJson($data);
-        } catch (\Exception $e) {
-            Logger::error("Error in citationsByYear", $e);
-            $this->outputError('Error loading citations by year', 500);
         }
     }
 
@@ -361,13 +283,18 @@ trait EnrichedStatsTrait
 
         try {
             $contextId = $context->getId();
-            $cacheKey = "citations_by_country_{$contextId}";
+            $cacheKey  = "citations_by_country_{$contextId}";
 
-            $data = Cache::remember(
-                $cacheKey,
-                PublicStatsConstants::CACHE_TTL_EXTERNAL,
-                fn() => $this->enrichedService->getCitationsByCountry($contextId)
-            );
+            // Don't use Cache::remember - while the chunked job is running
+            // the service returns ['is_computing' => true], which must not be
+            // cached for the full external TTL.
+            $data = Cache::get($cacheKey);
+            if ($data === null) {
+                $data = $this->enrichedService->getCitationsByCountry($contextId);
+                if (is_array($data) && empty($data['is_computing'])) {
+                    Cache::put($cacheKey, $data, PublicStatsConstants::CACHE_TTL_EXTERNAL);
+                }
+            }
 
             $this->outputJson($data);
         } catch (\Exception $e) {
@@ -391,11 +318,15 @@ trait EnrichedStatsTrait
             $contextId = $context->getId();
             $cacheKey = "citing_journals_{$contextId}";
 
-            $data = Cache::remember(
-                $cacheKey,
-                PublicStatsConstants::CACHE_TTL_EXTERNAL,
-                fn() => $this->enrichedService->getCitingJournals($request, $contextId)
-            );
+            // Don't use Cache::remember - while the job is still running the service
+            // returns ['is_computing' => true], which must not be cached.
+            $data = Cache::get($cacheKey);
+            if ($data === null) {
+                $data = $this->enrichedService->getCitingJournals($request, $contextId);
+                if ($data !== null && empty($data['is_computing'])) {
+                    Cache::put($cacheKey, $data, PublicStatsConstants::CACHE_TTL_EXTERNAL);
+                }
+            }
 
             $this->outputJson($data);
         } catch (\Exception $e) {
@@ -419,11 +350,13 @@ trait EnrichedStatsTrait
             $contextId = $context->getId();
             $cacheKey = "citing_institutions_{$contextId}";
 
-            $data = Cache::remember(
-                $cacheKey,
-                PublicStatsConstants::CACHE_TTL_EXTERNAL,
-                fn() => $this->enrichedService->getCitingInstitutions($request, $contextId)
-            );
+            $data = Cache::get($cacheKey);
+            if ($data === null) {
+                $data = $this->enrichedService->getCitingInstitutions($request, $contextId);
+                if ($data !== null && empty($data['is_computing'])) {
+                    Cache::put($cacheKey, $data, PublicStatsConstants::CACHE_TTL_EXTERNAL);
+                }
+            }
 
             $this->outputJson($data);
         } catch (\Exception $e) {
