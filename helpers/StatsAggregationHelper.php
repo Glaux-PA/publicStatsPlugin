@@ -3,6 +3,7 @@
 /**
  * @file plugins/generic/publicStats/helpers/StatsAggregationHelper.php
  *
+ * Copyright (c) 2026 Universitat Rovira i Virgili
  * Copyright (c) 2026 Glaux Publicaciones Académicas, S.L.
  * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
  *
@@ -23,10 +24,6 @@ use PKP\submission\Submission;
 
 class StatsAggregationHelper
 {
-    /**
-     * Aggregate statistics by section
-     * 
-     */
     public static function aggregateBySection(
         iterable $downloadRecords,
         iterable $viewRecords,
@@ -53,10 +50,6 @@ class StatsAggregationHelper
         );
     }
 
-    /**
-     * Aggregate statistics by issue
-     * 
-     */
     public static function aggregateByIssue(
         iterable $downloadRecords,
         iterable $viewRecords,
@@ -83,10 +76,6 @@ class StatsAggregationHelper
         );
     }
 
-    /**
-     * Generic aggregation by any entity (section, issue, author, etc.)
-     * 
-     */
     public static function aggregateByEntity(
         iterable $downloadRecords,
         iterable $viewRecords,
@@ -136,10 +125,6 @@ class StatsAggregationHelper
         return self::prepareFinalResults($entityStats);
     }
 
-    /**
-     * Extract unique submission IDs from all records
-     * 
-     */
     private static function extractUniqueSubmissionIds(
         iterable $downloadRecords,
         iterable $viewRecords
@@ -161,10 +146,6 @@ class StatsAggregationHelper
         return array_keys($submissionIds);
     }
 
-    /**
-     * Build mapping from submission ID to entity ID
-     * 
-     */
     private static function buildSubmissionToEntityMap(
         array $submissionIds,
         int $contextId,
@@ -203,10 +184,6 @@ class StatsAggregationHelper
         return $submissionToEntityMap;
     }
 
-    /**
-     * Validate entities and build entity info map
-     * 
-     */
     private static function validateEntities(
         array $entityIds,
         int $contextId,
@@ -225,10 +202,6 @@ class StatsAggregationHelper
         return $validEntities;
     }
 
-    /**
-     * Aggregate metrics (downloads or views) by entity
-     * 
-     */
     private static function aggregateMetrics(
         iterable $records,
         array $submissionToEntityMap,
@@ -270,9 +243,6 @@ class StatsAggregationHelper
         return $entityStats;
     }
 
-    /**
-     * Prepare final results with totals and article counts
-     */
     private static function prepareFinalResults(array $entityStats): array
     {
         $results = [];

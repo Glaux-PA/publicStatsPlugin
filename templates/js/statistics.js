@@ -23,9 +23,6 @@
   const PS = window.PublicStats || {};
   const { API, Export, Charts, Tables, Maps, AuthorStats, Impact } = PS;
 
-  // ========================================
-  // NAVIGATION AND SECTION MANAGEMENT
-  // ========================================
   const Navigation = {
     toggleSection(sectionId) {
       const content = document.getElementById(sectionId + "-content");
@@ -54,13 +51,9 @@
       const targetSection = document.getElementById(sectionId);
       if (targetSection) targetSection.style.display = "block";
 
-      if (
-        typeof event !== "undefined" &&
-        event.type !== "DOMContentLoaded" &&
-        event.target
-      ) {
-        event.target.classList.add("active");
-      }
+      const activeLink = document.querySelector(`.menu-link[data-section="${sectionId}"]`);
+      if (activeLink) activeLink.classList.add("active");
+
       this.updateYearSelectorVisibility(sectionId);
       setTimeout(() => this.initializeSectionContent(sectionId), 100);
     },
@@ -306,14 +299,9 @@
     },
   };
 
-  // ========================================
-  // DATA MANAGEMENT
-  // ========================================
   const DataManager = {
     changeYear(year) {
       selectedYear = year;
-      // Invalidate any in-flight fetches from the previous year so a slow
-      // response can't overwrite the UI we're about to repopulate.
       API.invalidateInflight();
       API.clearYearDependentCache();
       API.clearAuthorCache();
@@ -339,9 +327,6 @@
   PS.Navigation = Navigation;
   PS.DataManager = DataManager;
 
-  // ========================================
-  // GLOBAL API EXPORTS
-  // ========================================
   window.toggleSection = function (sectionId) {
     Navigation.toggleSection(sectionId);
   };
@@ -423,8 +408,6 @@
 
   window.filterReviewerListByYear = async function (year) {
     statsData.reviewerList = null;
-    // Cancel any earlier reviewer-list fetch still in flight so a slow
-    // response from the previous year can't overwrite this one's UI.
     API.invalidateInflight();
     const title = document.getElementById("reviewerListCardTitle");
     if (title) {
@@ -494,9 +477,6 @@
     Impact.renderThematicChart((response && response.topics) || []);
   };
 
-  // ========================================
-  // EVENT LISTENERS
-  // ========================================
   window.addEventListener("popstate", function (event) {
     if (event.state && event.state.year !== undefined) {
       const yearSelector = document.getElementById("yearSelector");

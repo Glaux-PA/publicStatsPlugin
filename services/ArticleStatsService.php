@@ -3,6 +3,7 @@
 /**
  * @file plugins/generic/publicStats/services/ArticleStatsService.php
  *
+ * Copyright (c) 2026 Universitat Rovira i Virgili
  * Copyright (c) 2026 Glaux Publicaciones Académicas, S.L.
  * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
  *
@@ -10,10 +11,6 @@
  * @ingroup plugins_generic_publicStats
  *
  * @brief Service for article-level statistics.
- *
- * Provides methods to retrieve top downloaded and viewed articles,
- * including both all-time rankings and recent (60-day) rankings.
- * Results include article metadata and direct links to publications.
  */
 
 declare(strict_types=1);
@@ -28,18 +25,6 @@ use PKP\core\PKPRequest;
 
 class ArticleStatsService
 {
-    /**
-     * Get top downloaded articles.
-     *
-     * Returns articles ranked by download count within the specified date range.
-     *
-     * @param PKPRequest $request Current request for URL generation
-     * @param int $contextId Journal/press ID
-     * @param int $limit Maximum number of articles to return
-     * @param string|null $dateStart Start date in Ymd format
-     * @param string|null $dateEnd End date in Ymd format
-     * @return array Array of article data with download counts
-     */
     public function getTopDownloadedArticles(
         PKPRequest $request,
         int $contextId,
@@ -57,18 +42,6 @@ class ArticleStatsService
         );
     }
 
-    /**
-     * Get top viewed articles.
-     *
-     * Returns articles ranked by abstract page view count within the specified date range.
-     *
-     * @param PKPRequest $request Current request for URL generation
-     * @param int $contextId Journal/press ID
-     * @param int $limit Maximum number of articles to return
-     * @param string|null $dateStart Start date in Ymd format
-     * @param string|null $dateEnd End date in Ymd format
-     * @return array Array of article data with view counts
-     */
     public function getTopViewedArticles(
         PKPRequest $request,
         int $contextId,
@@ -86,17 +59,6 @@ class ArticleStatsService
         );
     }
 
-    /**
-     * Get recent top downloaded articles.
-     *
-     * Returns articles ranked by downloads in the last 60 days.
-     * Useful for highlighting currently popular content.
-     *
-     * @param PKPRequest $request Current request for URL generation
-     * @param int $contextId Journal/press ID
-     * @param int $limit Maximum number of articles to return
-     * @return array Array of article data with recent download counts
-     */
     public function getRecentTopDownloadedArticles(
         PKPRequest $request,
         int $contextId,
@@ -114,16 +76,6 @@ class ArticleStatsService
         );
     }
 
-    /**
-     * Get recent top viewed articles.
-     *
-     * Returns articles ranked by views in the last 60 days.
-     *
-     * @param PKPRequest $request Current request for URL generation
-     * @param int $contextId Journal/press ID
-     * @param int $limit Maximum number of articles to return
-     * @return array Array of article data with recent view counts
-     */
     public function getRecentTopViewedArticles(
         PKPRequest $request,
         int $contextId,
@@ -141,19 +93,6 @@ class ArticleStatsService
         );
     }
 
-    /**
-     * Get top articles by metric type.
-     *
-     * Internal method that retrieves ranked articles based on the specified metric.
-     *
-     * @param PKPRequest $request Current request for URL generation
-     * @param int $contextId Journal/press ID
-     * @param string $metricType Either 'downloads' or 'views'
-     * @param int $limit Maximum results
-     * @param string|null $dateStart Start date
-     * @param string|null $dateEnd End date
-     * @return array Array of formatted article results
-     */
     private function getTopArticles(
         PKPRequest $request,
         int $contextId,
@@ -169,7 +108,6 @@ class ArticleStatsService
             ->filterByContextIds([$contextId])
             ->getMany();
 
-        // Select appropriate association type based on metric
         $assocType = ($metricType === 'downloads')
             ? Application::ASSOC_TYPE_SUBMISSION_FILE
             : Application::ASSOC_TYPE_SUBMISSION;
@@ -202,20 +140,6 @@ class ArticleStatsService
         );
     }
 
-    /**
-     * Format article results with metadata.
-     *
-     * Enriches raw statistics records with article title, authors,
-     * publication date, and URL.
-     *
-     * @param iterable $records Raw statistics records
-     * @param PKPRequest $request Current request for URL generation
-     * @param int $contextId Journal/press ID
-     * @param iterable $userGroups User groups for author string formatting
-     * @param string $metricType Type of metric (downloads/views)
-     * @param int $limit Maximum results
-     * @return array Formatted article data array
-     */
     private function formatArticleResults(
         iterable $records,
         PKPRequest $request,
@@ -224,7 +148,6 @@ class ArticleStatsService
         string $metricType,
         int $limit
     ): array {
-        // Collect submission ids preserving record order and metric mapping.
         $orderedIds = [];
         $metricById = [];
         foreach ($records as $record) {
@@ -242,7 +165,6 @@ class ArticleStatsService
             return [];
         }
 
-        // Batch-load all submissions in a single query instead of one per record.
         $collector = Repo::submission()->getCollector()->filterByContextIds([$contextId]);
         $rows = $collector->getQueryBuilder()
             ->whereIn('s.submission_id', $orderedIds)

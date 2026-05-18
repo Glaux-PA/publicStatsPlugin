@@ -3,6 +3,7 @@
 /**
  * @file plugins/generic/publicStats/services/SectionStatsService.php
  *
+ * Copyright (c) 2026 Universitat Rovira i Virgili
  * Copyright (c) 2026 Glaux Publicaciones Académicas, S.L.
  * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
  *
@@ -10,9 +11,6 @@
  * @ingroup plugins_generic_publicStats
  *
  * @brief Service for journal section statistics.
- *
- * Aggregates download and view statistics at the section level,
- * helping identify which sections attract the most reader attention.
  */
 
 declare(strict_types=1);
@@ -28,9 +26,6 @@ use APP\plugins\generic\publicStats\helpers\StatsAggregationHelper;
 
 class SectionStatsService extends BaseStatsService
 {
-    /**
-     * Get section statistics
-     */
     public function getSectionStats(
         int $contextId,
         ?string $dateStart = null,

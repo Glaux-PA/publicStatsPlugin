@@ -3,6 +3,7 @@
 /**
  * @file plugins/generic/publicStats/services/CsvExporter.php
  *
+ * Copyright (c) 2026 Universitat Rovira i Virgili
  * Copyright (c) 2026 Glaux Publicaciones Académicas, S.L.
  * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
  *
@@ -38,9 +39,6 @@ class CsvExporter
     ) {
     }
 
-    // ========================================
-    // Access metrics
-    // ========================================
 
     public function monthly(int $contextId, ?string $year): array
     {
@@ -106,9 +104,6 @@ class CsvExporter
         ];
     }
 
-    // ========================================
-    // Top articles
-    // ========================================
 
     public function topDownloaded(PKPRequest $request, int $contextId, ?string $year, int $limit): array
     {
@@ -156,9 +151,6 @@ class CsvExporter
         ];
     }
 
-    // ========================================
-    // Editorial
-    // ========================================
 
     public function editorial(int $contextId, ?string $year): array
     {
@@ -279,14 +271,11 @@ class CsvExporter
         ];
     }
 
-    // ========================================
-    // Authors / reviewers
-    // ========================================
 
     public function authorsByCountry(int $contextId): array
     {
         return $this->countryCountCsv(
-            $this->authorReviewerService->getAuthorsByCountry($contextId),
+            $this->authorReviewerService->getAuthorsByCountry($contextId) ?? [],
             'authors_by_country',
             'Authors Count'
         );
@@ -304,7 +293,7 @@ class CsvExporter
     public function reviewersByCountry(int $contextId): array
     {
         return $this->countryCountCsv(
-            $this->authorReviewerService->getReviewersByCountry($contextId),
+            $this->authorReviewerService->getReviewersByCountry($contextId) ?? [],
             'reviewers_by_country',
             'Reviewers Count'
         );
@@ -340,9 +329,6 @@ class CsvExporter
         return compact('filename', 'headers', 'rows');
     }
 
-    // ========================================
-    // Issues / sections
-    // ========================================
 
     public function issues(PKPRequest $request, int $contextId, ?string $year): array
     {
@@ -436,9 +422,6 @@ class CsvExporter
         ];
     }
 
-    // ========================================
-    // Citations / enriched
-    // ========================================
 
     /**
      * Refuse to export a chunked aggregate that hasn't finished computing.
@@ -512,8 +495,6 @@ class CsvExporter
     public function citationsByCountry(int $contextId): array
     {
         $data = $this->enrichedService->getCitationsByCountry($contextId);
-        // The chunked service returns either an `is_computing` placeholder or
-        // the formatted list directly (no 'data' wrapper).
         if (is_array($data) && !empty($data['is_computing'])) {
             $this->assertReady($data, 'citations by country');
         }
@@ -590,6 +571,7 @@ class CsvExporter
     public function citingInstitutions(PKPRequest $request, int $contextId, ?string $yearFilter): array
     {
         $response = $this->enrichedService->getCitingInstitutions($request, $contextId);
+        $this->assertReady($response, 'citing institutions');
         $filter = $this->normalizeYearFilter($yearFilter);
         $institutions = is_array($response) && is_array($response['institutions'] ?? null) ? $response['institutions'] : [];
 
@@ -619,9 +601,6 @@ class CsvExporter
         ];
     }
 
-    // ========================================
-    // Full report
-    // ========================================
 
     public function fullReport(int $contextId, ?string $year): array
     {
@@ -652,13 +631,10 @@ class CsvExporter
         ];
     }
 
-    // ========================================
-    // Shared helpers
-    // ========================================
 
     /**
      * Build the date range used by statistics queries, matching the handler's
-     * convention: explicit year → Jan 1 to Dec 31 of that year; no year →
+     * convention: explicit year => Jan 1 to Dec 31 of that year; no year =>
      * MIN_YEAR to yesterday.
      */
     private function dateRanges(?string $year): array
@@ -732,9 +708,7 @@ class CsvExporter
         if ($yearFilter === null || $yearFilter === '' || $yearFilter === 'all') {
             return 'all';
         }
-        // Strict: only accept a 4-digit year in a reasonable range. Anything
-        // else falls back to 'all' so unsanitised input from `?year=foo` can't
-        // leak weird characters into the CSV filename / Content-Disposition.
+        // Only accept a 4-digit year in range; anything else is sanitised to 'all'.
         if (preg_match('/^\d{4}$/', $yearFilter)) {
             $y = (int) $yearFilter;
             if ($y >= 1900 && $y <= ((int) date('Y') + 1)) {

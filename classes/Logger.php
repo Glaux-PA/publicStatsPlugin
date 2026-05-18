@@ -3,6 +3,7 @@
 /**
  * @file plugins/generic/publicStats/classes/Logger.php
  *
+ * Copyright (c) 2026 Universitat Rovira i Virgili
  * Copyright (c) 2026 Glaux Publicaciones Académicas, S.L.
  * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
  *
@@ -24,9 +25,6 @@ class Logger
 {
     private const PREFIX = '[publicStats]';
 
-    /**
-     * Log an error. Optionally include the exception message at the end.
-     */
     public static function error(string $message, ?\Throwable $e = null): void
     {
         error_log(self::format($message, $e));

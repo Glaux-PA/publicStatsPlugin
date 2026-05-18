@@ -3,13 +3,11 @@
 /**
  * @file plugins/generic/publicStats/controllers/traits/ArticleStatsTrait.php
  *
+ * Copyright (c) 2026 Universitat Rovira i Virgili
  * Copyright (c) 2026 Glaux Publicaciones Académicas, S.L.
  * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
  *
  * @brief Trait providing article statistics HTTP endpoints.
- *
- * Contains handlers for top downloaded, top viewed, recent articles,
- * and issue/section statistics. Uses caching for performance.
  */
 
 declare(strict_types=1);
@@ -24,9 +22,6 @@ use Illuminate\Support\Facades\Cache;
 
 trait ArticleStatsTrait
 {
-    /**
-     * Get top downloaded articles endpoint
-     */
     public function topDownloaded(array $args, PKPRequest $request): void
     {
         $context = $request->getContext();
@@ -34,6 +29,7 @@ trait ArticleStatsTrait
             $this->outputError('Context not found', 404);
             return;
         }
+        if (!$this->requireSubsection('general-downloads', $context)) return;
 
         $year = InputValidator::validateYear($request->getUserVar('year'));
 
@@ -67,9 +63,6 @@ trait ArticleStatsTrait
         }
     }
 
-    /**
-     * Get top viewed articles endpoint
-     */
     public function topViewed(array $args, PKPRequest $request): void
     {
         $context = $request->getContext();
@@ -77,6 +70,7 @@ trait ArticleStatsTrait
             $this->outputError('Context not found', 404);
             return;
         }
+        if (!$this->requireSubsection('general-views', $context)) return;
 
         $year = InputValidator::validateYear($request->getUserVar('year'));
 
@@ -110,9 +104,6 @@ trait ArticleStatsTrait
         }
     }
 
-    /**
-     * Get recent top downloaded articles (last 60 days)
-     */
     public function recentDownloaded(array $args, PKPRequest $request): void
     {
         $context = $request->getContext();
@@ -120,6 +111,7 @@ trait ArticleStatsTrait
             $this->outputError('Context not found', 404);
             return;
         }
+        if (!$this->requireSubsection('recent-downloads', $context)) return;
 
         try {
             $contextId = $context->getId();
@@ -142,9 +134,6 @@ trait ArticleStatsTrait
         }
     }
 
-    /**
-     * Get recent top viewed articles (last 60 days)
-     */
     public function recentViewed(array $args, PKPRequest $request): void
     {
         $context = $request->getContext();
@@ -152,6 +141,7 @@ trait ArticleStatsTrait
             $this->outputError('Context not found', 404);
             return;
         }
+        if (!$this->requireSubsection('recent-views', $context)) return;
 
         try {
             $contextId = $context->getId();
@@ -174,9 +164,6 @@ trait ArticleStatsTrait
         }
     }
 
-    /**
-     * Get issue statistics
-     */
     public function issues(array $args, PKPRequest $request): void
     {
         $context = $request->getContext();
@@ -184,6 +171,7 @@ trait ArticleStatsTrait
             $this->outputError('Context not found', 404);
             return;
         }
+        if (!$this->requireSubsection('general-issues', $context)) return;
 
         $year = InputValidator::validateYear($request->getUserVar('year'));
 
@@ -216,9 +204,6 @@ trait ArticleStatsTrait
         }
     }
 
-    /**
-     * Get section statistics
-     */
     public function sections(array $args, PKPRequest $request): void
     {
         $context = $request->getContext();
@@ -226,6 +211,7 @@ trait ArticleStatsTrait
             $this->outputError('Context not found', 404);
             return;
         }
+        if (!$this->requireSubsection('general-sections', $context)) return;
 
         $year = InputValidator::validateYear($request->getUserVar('year'));
 
@@ -257,9 +243,6 @@ trait ArticleStatsTrait
         }
     }
 
-    /**
-     * Get sections list for dropdown
-     */
     public function sectionsList(array $args, PKPRequest $request): void
     {
         $context = $request->getContext();
@@ -267,6 +250,7 @@ trait ArticleStatsTrait
             $this->outputError('Context not found', 404);
             return;
         }
+        if (!$this->requireSubsection('general-sections', $context)) return;
 
         try {
             $contextId = $context->getId();

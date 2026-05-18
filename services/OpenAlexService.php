@@ -3,6 +3,7 @@
 /**
  * @file plugins/generic/publicStats/services/OpenAlexService.php
  *
+ * Copyright (c) 2026 Universitat Rovira i Virgili
  * Copyright (c) 2026 Glaux Publicaciones Académicas, S.L.
  * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
  *
@@ -10,11 +11,6 @@
  * @ingroup plugins_generic_publicStats
  *
  * @brief Service for OpenAlex API integration.
- *
- * Handles all communication with the OpenAlex API to retrieve
- * citation metrics, topics, funding information, and other
- * bibliometric data. Implements rate limiting and caching
- * to respect API limits.
  */
 
 declare(strict_types=1);
@@ -35,12 +31,9 @@ class OpenAlexService
     private const API_BASE = 'https://api.openalex.org';
     private ?string $contactEmail;
 
-    /**
-     * Constructor - Initialize contact email from plugin settings
-     */
-    public function __construct()
+    public function __construct(?string $contactEmail = null)
     {
-        $this->contactEmail = $this->getContactEmail();
+        $this->contactEmail = $contactEmail ?? $this->getContactEmail();
     }
 
     private function getContactEmail(): ?string
@@ -87,9 +80,7 @@ class OpenAlexService
         $attempts = 3;
         $backoffMs = [250, 1000, 2000]; // exponential-ish: 250ms, 1s, 2s
 
-        // OpenAlex puts callers with a contact email in the "polite pool"
-        // (faster, more consistent throughput). The signal must be a `mailto`
-        // *query parameter* - sending it as an HTTP header is silently ignored.
+        // Polite-pool routing requires `mailto` as a query param; headers are ignored.
         if ($this->contactEmail && !isset($query['mailto'])) {
             $query['mailto'] = $this->contactEmail;
         }
@@ -172,10 +163,9 @@ class OpenAlexService
             return $cached;
         }
 
+        // Cache::add wins only once, so subsequent concurrent calls skip the dispatch.
         $lockKey = self::lockKeyFor($type, $contextId);
-        // Cache::add returns true only when the key didn't exist, which makes
-        // this our "first request wins, subsequent requests short-circuit" gate.
-        $lockTtl = max(120, (int) (PublicStatsConstants::CACHE_TTL_EXTERNAL / 24)); // ~1h default
+        $lockTtl = max(120, (int) (PublicStatsConstants::CACHE_TTL_EXTERNAL / 24));
         if (Cache::add($lockKey, 1, $lockTtl)) {
             ComputeOpenAlexAggregateJob::dispatch($contextId, $type);
         }
@@ -183,10 +173,7 @@ class OpenAlexService
         return $placeholder;
     }
 
-    // Chunked aggregates: state shape under cacheKeyFor($type, $contextId)
-    // is { processed, total, accumulator, is_complete }. Wrappers only expose
-    // 'accumulator' once is_complete is true.
-
+    // Chunked state shape: { processed, total, accumulator, is_complete }.
     public function getChunkedState(string $type, int $contextId): ?array
     {
         return Cache::get(self::cacheKeyFor($type, $contextId));
@@ -256,15 +243,12 @@ class OpenAlexService
         $doi = trim($doi);
         $doi = preg_replace('/[\r\n\x00-\x1f]/', '', $doi);
 
-        if ($doi === '' || $doi === null) {
+        if ($doi === '') {
             return null;
         }
 
         return urlencode($doi);
     }
-    /**
-     * Get OpenAlex work by DOI
-     */
     public function getWorkByDOI(string $doi): ?array
     {
         $sanitizedDoi = $this->sanitizeDoi($doi);
@@ -294,9 +278,6 @@ class OpenAlexService
         return $work;
     }
     
-    /**
-     * Get enriched metrics for a submission
-     */
     public function getWorkMetrics(string $doi): ?array
     {
         $work = $this->getWorkByDOI($doi);
@@ -321,9 +302,6 @@ class OpenAlexService
         ];
     }
     
-    /**
-     * Get citation network for a work (who cites it)
-     */
     public function getCitingWorks(string $openalexId): array
     {
         $cacheKey = "openalex_citing_paginated_" . md5($openalexId);
@@ -359,8 +337,7 @@ class OpenAlexService
             if (!$cursor) break;
         }
 
-        // Only cache when we got a clean traversal - otherwise a transient
-        // failure would freeze a partial citing-works list for 7 days.
+        // Don't cache a partial traversal.
         if (!$anyFailed) {
             Cache::put($cacheKey, $results, PublicStatsConstants::CACHE_TTL_EXTERNAL);
         }
@@ -370,11 +347,8 @@ class OpenAlexService
 
 
     /**
-     * Get citing journals/sources for all published works.
-     *
-     * Returns cached data when available; otherwise schedules a background
-     * job and returns null. The caller (EnrichedStatsService::getCitingJournals)
-     * converts that null into an `is_computing` placeholder for the frontend.
+     * Citing journals. Returns the cached payload, or null while a queue job
+     * is computing it (the caller turns that null into an `is_computing` placeholder).
      */
     public function getCitingJournals(int $contextId): ?array
     {
@@ -398,7 +372,6 @@ class OpenAlexService
 
         $journalCitations = [];
 
-        // Get user groups for author strings
         $userGroups = Repo::userGroup()->getCollector()
             ->filterByContextIds([$contextId])
             ->getMany();
@@ -416,7 +389,6 @@ class OpenAlexService
                 $openalexId = $work['id'];
                 $citingWorks = $this->getCitingWorks($openalexId);
                 
-                // Article info for tracking which articles are cited
                 $datePublished = $publication->getData('datePublished');
                 $articleInfo = [
                     'id' => $submission->getId(),
@@ -428,7 +400,6 @@ class OpenAlexService
                 ];
 
                foreach ($citingWorks as $citingWork) {
-                    // Get journal/source from primary_location
                     $primaryLocation = $citingWork['primary_location'] ?? null;
                     
                     if (!$primaryLocation || !is_array($primaryLocation)) {
@@ -445,9 +416,8 @@ class OpenAlexService
                         continue;
                     }
                     
-                    // Get the year when the citation was made (publication year of citing work)
                     $citationYear = $citingWork['publication_year'] ?? null;
-                    
+
                     $sourceId = $source['id'];
                     $sourceName = trim((string)$source['display_name']); 
                     
@@ -466,7 +436,6 @@ class OpenAlexService
                     
                     $journalCitations[$sourceId]['citations']++;
                     
-                    // Track citations by year
                     if ($citationYear) {
                         if (!isset($journalCitations[$sourceId]['citations_by_year'][$citationYear])) {
                             $journalCitations[$sourceId]['citations_by_year'][$citationYear] = 0;
@@ -474,10 +443,9 @@ class OpenAlexService
                         $journalCitations[$sourceId]['citations_by_year'][$citationYear]++;
                     }
                     
-                    // Track which article was cited (with citation year)
                     $articleId = $articleInfo['id'];
                     $articleYearKey = $articleId . '_' . $citationYear;
-                    
+
                     if (!isset($journalCitations[$sourceId]['cited_articles'][$articleYearKey])) {
                         $journalCitations[$sourceId]['cited_articles'][$articleYearKey] = [
                             'id' => $articleId,
@@ -496,12 +464,11 @@ class OpenAlexService
                 usleep(PublicStatsConstants::OPENALEX_RATE_LIMIT_DELAY);
             }
             
-            // Convert cited_articles from associative to indexed array and sort by times_cited
             foreach ($journalCitations as &$journal) {
                 $journal['cited_articles'] = array_values($journal['cited_articles']);
                 usort($journal['cited_articles'], fn($a, $b) => $b['times_cited'] - $a['times_cited']);
             }
-            unset($journal); // break the reference left dangling by &$journal so the next usort doesn't corrupt the last element
+            unset($journal); // drop the foreach reference before the next usort.
 
         usort($journalCitations, fn($a, $b) => $b['citations'] - $a['citations']);
 
@@ -509,17 +476,8 @@ class OpenAlexService
     }
 
     /**
-     * Get citing institutions for all published works.
-     *
-     * Returns institutions whose authors have cited works from this journal,
-     * aggregated by institution with citation counts.
-     *
-     * Returns cached data when available; otherwise schedules a background
-     * job and returns null. The caller (EnrichedStatsService::getCitingInstitutions)
-     * converts that null into an `is_computing` placeholder for the frontend.
-     *
-     * @param int $contextId Journal/press ID
-     * @return array|null Institutions with citation data, or null while computing
+     * Citing institutions. Returns the cached payload, or null while a queue job
+     * is computing it (the caller turns that null into an `is_computing` placeholder).
      */
     public function getCitingInstitutions(int $contextId): ?array
     {
@@ -543,7 +501,6 @@ class OpenAlexService
 
         $institutionCitations = [];
 
-        // Get user groups for author strings
         $userGroups = Repo::userGroup()->getCollector()
             ->filterByContextIds([$contextId])
             ->getMany();
@@ -561,7 +518,6 @@ class OpenAlexService
                 $openalexId = $work['id'];
                 $citingWorks = $this->getCitingWorks($openalexId);
                 
-                // Article info for tracking which articles are cited
                 $datePublished = $publication->getData('datePublished');
                 $articleInfo = [
                     'id' => $submission->getId(),
@@ -575,10 +531,8 @@ class OpenAlexService
                 foreach ($citingWorks as $citingWork) {
                     if (empty($citingWork['authorships'])) continue;
                     
-                    // Get the year when the citation was made
                     $citationYear = $citingWork['publication_year'] ?? null;
-                    
-                    // Dedup institutions per citing work
+
                     $seenInstitutions = [];
                     
                     foreach ($citingWork['authorships'] as $authorship) {
@@ -590,7 +544,6 @@ class OpenAlexService
                             
                             if (!$institutionId || !$institutionName) continue;
                             
-                            // Skip if we already counted this institution for this citing work
                             if (isset($seenInstitutions[$institutionId])) continue;
                             $seenInstitutions[$institutionId] = true;
                             
@@ -609,7 +562,6 @@ class OpenAlexService
                             
                             $institutionCitations[$institutionId]['citations']++;
                             
-                            // Track citations by year
                             if ($citationYear) {
                                 if (!isset($institutionCitations[$institutionId]['citations_by_year'][$citationYear])) {
                                     $institutionCitations[$institutionId]['citations_by_year'][$citationYear] = 0;
@@ -617,7 +569,6 @@ class OpenAlexService
                                 $institutionCitations[$institutionId]['citations_by_year'][$citationYear]++;
                             }
                             
-                            // Track which article was cited
                             $articleId = $articleInfo['id'];
                             $articleYearKey = $articleId . '_' . $citationYear;
                             
@@ -641,14 +592,12 @@ class OpenAlexService
                 usleep(PublicStatsConstants::OPENALEX_RATE_LIMIT_DELAY);
             }
             
-            // Convert cited_articles from associative to indexed array and sort
             foreach ($institutionCitations as &$institution) {
                 $institution['cited_articles'] = array_values($institution['cited_articles']);
                 usort($institution['cited_articles'], fn($a, $b) => $b['times_cited'] - $a['times_cited']);
             }
-            unset($institution); // break the reference left dangling by &$institution so the next usort doesn't corrupt the last element
+            unset($institution); // drop the foreach reference before the next usort.
 
-        // Sort by citation count (descending)
         usort($institutionCitations, fn($a, $b) => $b['citations'] - $a['citations']);
 
         return array_values($institutionCitations);

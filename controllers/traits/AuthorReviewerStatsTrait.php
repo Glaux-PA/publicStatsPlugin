@@ -3,13 +3,11 @@
 /**
  * @file plugins/generic/publicStats/controllers/traits/AuthorReviewerStatsTrait.php
  *
+ * Copyright (c) 2026 Universitat Rovira i Virgili
  * Copyright (c) 2026 Glaux Publicaciones Académicas, S.L.
  * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
  *
  * @brief Trait providing author and reviewer statistics HTTP endpoints.
- *
- * Contains handlers for geographic distribution, institutional
- * affiliations, and individual author statistics.
  */
 
 declare(strict_types=1);
@@ -24,9 +22,6 @@ use Illuminate\Support\Facades\Cache;
 
 trait AuthorReviewerStatsTrait
 {
-    /**
-     * Get authors by country
-     */
     public function authorsByCountry(array $args, PKPRequest $request): void
     {
         $context = $request->getContext();
@@ -34,6 +29,7 @@ trait AuthorReviewerStatsTrait
             $this->outputError('Context not found', 404);
             return;
         }
+        if (!$this->requireSubsection('authors-by-country', $context)) return;
 
         try {
             $contextId = $context->getId();
@@ -52,9 +48,6 @@ trait AuthorReviewerStatsTrait
         }
     }
 
-    /**
-     * Get authors by institution
-     */
     public function authorsByInstitution(array $args, PKPRequest $request): void
     {
         $context = $request->getContext();
@@ -62,6 +55,7 @@ trait AuthorReviewerStatsTrait
             $this->outputError('Context not found', 404);
             return;
         }
+        if (!$this->requireSubsection('authors-by-institution', $context)) return;
 
         try {
             $contextId = $context->getId();
@@ -80,9 +74,6 @@ trait AuthorReviewerStatsTrait
         }
     }
 
-    /**
-     * Get reviewers by country
-     */
     public function reviewersByCountry(array $args, PKPRequest $request): void
     {
         $context = $request->getContext();
@@ -90,6 +81,7 @@ trait AuthorReviewerStatsTrait
             $this->outputError('Context not found', 404);
             return;
         }
+        if (!$this->requireSubsection('reviewers-by-country', $context)) return;
 
         try {
             $contextId = $context->getId();
@@ -108,9 +100,6 @@ trait AuthorReviewerStatsTrait
         }
     }
 
-    /**
-     * Get reviewers by institution
-     */
     public function reviewersByInstitution(array $args, PKPRequest $request): void
     {
         $context = $request->getContext();
@@ -118,6 +107,7 @@ trait AuthorReviewerStatsTrait
             $this->outputError('Context not found', 404);
             return;
         }
+        if (!$this->requireSubsection('reviewers-by-institution', $context)) return;
 
         try {
             $contextId = $context->getId();
@@ -136,9 +126,6 @@ trait AuthorReviewerStatsTrait
         }
     }
 
-    /**
-     * Get alphabetical list of reviewers for a given year (or all years).
-     */
     public function reviewerList(array $args, PKPRequest $request): void
     {
         $context = $request->getContext();
@@ -146,6 +133,7 @@ trait AuthorReviewerStatsTrait
             $this->outputError('Context not found', 404);
             return;
         }
+        if (!$this->requireSubsection('reviewer-list', $context)) return;
 
         try {
             $contextId = $context->getId();
@@ -166,9 +154,6 @@ trait AuthorReviewerStatsTrait
         }
     }
 
-    /**
-     * Get authors list (for dropdown/selection)
-     */
     public function authorsList(array $args, PKPRequest $request): void
     {
         $context = $request->getContext();
@@ -176,6 +161,7 @@ trait AuthorReviewerStatsTrait
             $this->outputError('Context not found', 404);
             return;
         }
+        if (!$this->requireSubsection('author-individual-stats', $context)) return;
 
         try {
             $contextId = $context->getId();
@@ -201,9 +187,6 @@ trait AuthorReviewerStatsTrait
         }
     }
 
-    /**
-     * Get statistics for specific author
-     */
     public function authorStats(array $args, PKPRequest $request): void
     {
         $context = $request->getContext();
@@ -211,6 +194,7 @@ trait AuthorReviewerStatsTrait
             $this->outputError('Context not found', 404);
             return;
         }
+        if (!$this->requireSubsection('author-individual-stats', $context)) return;
 
         $authorKey = InputValidator::validateAuthorKey($request->getUserVar('authorKey'));
         if (!$authorKey) {
@@ -252,9 +236,6 @@ trait AuthorReviewerStatsTrait
         }
     }
 
-    /**
-     * Get authors list for stats page (with filters)
-     */
     public function authorsListForStats(array $args, PKPRequest $request): void
     {
         $context = $request->getContext();
@@ -262,10 +243,11 @@ trait AuthorReviewerStatsTrait
             $this->outputError('Context not found', 404);
             return;
         }
+        if (!$this->requireSubsection('author-individual-stats', $context)) return;
 
         try {
             $contextId = $context->getId();
-            $minPublications = 1; // Minimum 1 publication required
+            $minPublications = 1;
             
             $cacheKey = "authors_list_stats_{$contextId}";
             

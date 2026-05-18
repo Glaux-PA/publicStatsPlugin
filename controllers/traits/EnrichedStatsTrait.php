@@ -3,13 +3,11 @@
 /**
  * @file plugins/generic/publicStats/controllers/traits/EnrichedStatsTrait.php
  *
+ * Copyright (c) 2026 Universitat Rovira i Virgili
  * Copyright (c) 2026 Glaux Publicaciones Académicas, S.L.
  * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
  *
  * @brief Trait providing OpenAlex-enriched statistics HTTP endpoints.
- *
- * Contains handlers for citation metrics, thematic profiles, open access
- * statistics, citing journals/institutions, and citations by country.
  */
 
 declare(strict_types=1);
@@ -24,9 +22,6 @@ use Illuminate\Support\Facades\Cache;
 
 trait EnrichedStatsTrait
 {
-    /**
-     * Get total enriched statistics (combines local + OpenAlex)
-     */
     public function totalEnriched(array $args, PKPRequest $request): void
     {
         $context = $request->getContext();
@@ -55,9 +50,6 @@ trait EnrichedStatsTrait
         }
     }
 
-    /**
-     * Get external citations count
-     */
     public function externalCitations(array $args, PKPRequest $request): void
     {
         $context = $request->getContext();
@@ -86,9 +78,6 @@ trait EnrichedStatsTrait
         }
     }
 
-    /**
-     * Get top cited articles from OpenAlex
-     */
     public function topCitedArticles(array $args, PKPRequest $request): void
     {
         $context = $request->getContext();
@@ -96,6 +85,7 @@ trait EnrichedStatsTrait
             $this->outputError('Context not found', 404);
             return;
         }
+        if (!$this->requireSubsection('top-cited', $context)) return;
 
         try {
             $contextId = $context->getId();
@@ -112,9 +102,6 @@ trait EnrichedStatsTrait
         }
     }
 
-    /**
-     * Get research topics distribution
-     */
     public function topicsDistribution(array $args, PKPRequest $request): void
     {
         $context = $request->getContext();
@@ -122,6 +109,7 @@ trait EnrichedStatsTrait
             $this->outputError('Context not found', 404);
             return;
         }
+        if (!$this->requireSubsection('thematic-profile', $context)) return;
 
         try {
             $data = $this->enrichedService->getThematicProfile($context->getId());
@@ -132,9 +120,6 @@ trait EnrichedStatsTrait
         }
     }
 
-    /**
-     * Get citation timeline for specific article
-     */
     public function articleCitationTimeline(array $args, PKPRequest $request): void
     {
         $context = $request->getContext();
@@ -142,6 +127,7 @@ trait EnrichedStatsTrait
             $this->outputError('Context not found', 404);
             return;
         }
+        if (!$this->requireSubsection('top-cited', $context)) return;
 
         $submissionId = InputValidator::validateSubmissionId($request, $request->getUserVar('submissionId'));
         if (!$submissionId) {
@@ -182,9 +168,6 @@ trait EnrichedStatsTrait
         }
     }
 
-    /**
-     * Get top cited articles
-     */
     public function topCited(array $args, PKPRequest $request): void
     {
         $context = $request->getContext();
@@ -192,6 +175,7 @@ trait EnrichedStatsTrait
             $this->outputError('Context not found', 404);
             return;
         }
+        if (!$this->requireSubsection('top-cited', $context)) return;
 
         try {
             $limit = InputValidator::validateLimit($request->getUserVar('limit'), 20, 100);
@@ -211,9 +195,6 @@ trait EnrichedStatsTrait
         }
     }
 
-    /**
-     * Get citation evolution
-     */
     public function citationEvolution(array $args, PKPRequest $request): void
     {
         $context = $request->getContext();
@@ -221,6 +202,7 @@ trait EnrichedStatsTrait
             $this->outputError('Context not found', 404);
             return;
         }
+        if (!$this->requireSubsection('citation-evolution', $context)) return;
 
         try {
             $data = $this->enrichedService->getCitationEvolution($context->getId());
@@ -231,9 +213,6 @@ trait EnrichedStatsTrait
         }
     }
 
-    /**
-     * Get open access statistics
-     */
     public function openAccessStats(array $args, PKPRequest $request): void
     {
         $context = $request->getContext();
@@ -241,6 +220,7 @@ trait EnrichedStatsTrait
             $this->outputError('Context not found', 404);
             return;
         }
+        if (!$this->requireSubsection('open-access-stats', $context)) return;
 
         try {
             $data = $this->enrichedService->getOpenAccessStats($context->getId());
@@ -251,9 +231,6 @@ trait EnrichedStatsTrait
         }
     }
 
-    /**
-     * Get thematic profile
-     */
     public function thematicProfile(array $args, PKPRequest $request): void
     {
         $context = $request->getContext();
@@ -261,6 +238,7 @@ trait EnrichedStatsTrait
             $this->outputError('Context not found', 404);
             return;
         }
+        if (!$this->requireSubsection('thematic-profile', $context)) return;
 
         try {
             $data = $this->enrichedService->getThematicProfile($context->getId());
@@ -270,9 +248,6 @@ trait EnrichedStatsTrait
             $this->outputError('Error loading thematic profile', 500);
         }
     }
-    /**
-     * Get citations by country (map data)
-     */
     public function citationsByCountry(array $args, PKPRequest $request): void
     {
         $context = $request->getContext();
@@ -280,14 +255,13 @@ trait EnrichedStatsTrait
             $this->outputError('Context not found', 404);
             return;
         }
+        if (!$this->requireSubsection('citations-map', $context)) return;
 
         try {
             $contextId = $context->getId();
             $cacheKey  = "citations_by_country_{$contextId}";
 
-            // Don't use Cache::remember - while the chunked job is running
-            // the service returns ['is_computing' => true], which must not be
-            // cached for the full external TTL.
+            // Manual get/put: skip the cache when the service returns is_computing.
             $data = Cache::get($cacheKey);
             if ($data === null) {
                 $data = $this->enrichedService->getCitationsByCountry($contextId);
@@ -303,9 +277,6 @@ trait EnrichedStatsTrait
         }
     }
 
-    /**
-     * Get citing journals
-     */
     public function citingJournals(array $args, PKPRequest $request): void
     {
         $context = $request->getContext();
@@ -313,13 +284,13 @@ trait EnrichedStatsTrait
             $this->outputError('Context not found', 404);
             return;
         }
+        if (!$this->requireSubsection('citing-journals', $context)) return;
 
         try {
             $contextId = $context->getId();
             $cacheKey = "citing_journals_{$contextId}";
 
-            // Don't use Cache::remember - while the job is still running the service
-            // returns ['is_computing' => true], which must not be cached.
+            // Manual get/put: skip the cache when the service returns is_computing.
             $data = Cache::get($cacheKey);
             if ($data === null) {
                 $data = $this->enrichedService->getCitingJournals($request, $contextId);
@@ -335,9 +306,6 @@ trait EnrichedStatsTrait
         }
     }
 
-    /**
-     * Get citing institutions
-     */
     public function citingInstitutions(array $args, PKPRequest $request): void
     {
         $context = $request->getContext();
@@ -345,6 +313,7 @@ trait EnrichedStatsTrait
             $this->outputError('Context not found', 404);
             return;
         }
+        if (!$this->requireSubsection('citing-journals', $context)) return;
 
         try {
             $contextId = $context->getId();

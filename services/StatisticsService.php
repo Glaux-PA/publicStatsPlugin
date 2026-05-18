@@ -3,6 +3,7 @@
 /**
  * @file plugins/generic/publicStats/services/StatisticsService.php
  *
+ * Copyright (c) 2026 Universitat Rovira i Virgili
  * Copyright (c) 2026 Glaux Publicaciones Académicas, S.L.
  * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
  *
@@ -10,10 +11,6 @@
  * @ingroup plugins_generic_publicStats
  *
  * @brief Main statistics service for core metrics aggregation.
- *
- * Provides methods to retrieve monthly, annual, and geographic statistics
- * for downloads and views. This is the primary service for basic access metrics
- * and is used by the main statistics display.
  */
 
 declare(strict_types=1);
@@ -29,32 +26,13 @@ use Sokil\IsoCodes\IsoCodesFactory;
 
 class StatisticsService extends BaseStatsService
 {
-    /**
-     * @var IsoCodesFactory ISO codes factory for country name lookups
-     */
     private readonly IsoCodesFactory $isoCodes;
 
-    /**
-     * Constructor.
-     *
-     * @param IsoCodesFactory $isoCodes Factory for ISO country code lookups
-     */
     public function __construct(IsoCodesFactory $isoCodes)
     {
         $this->isoCodes = $isoCodes;
     }
 
-    /**
-     * Get monthly statistics.
-     *
-     * Returns download and view counts aggregated by month in the format
-     * expected by the frontend JavaScript.
-     *
-     * @param int $contextId Journal/press ID
-     * @param string|null $dateStart Start date in Ymd format
-     * @param string|null $dateEnd End date in Ymd format
-     * @return array Monthly statistics array
-     */
     public function getMonthlyStats(
         int $contextId,
         ?string $dateStart = null,
@@ -68,19 +46,16 @@ class StatisticsService extends BaseStatsService
             'dateEnd' => $dateEnd ?? date('Ymd', strtotime('yesterday'))
         ];
 
-        // Get timeline data for downloads (file access)
         $downloadsByMonth = $statsService->getTimeline(
             StatisticsHelper::STATISTICS_DIMENSION_MONTH,
             array_merge($baseParams, ['assocTypes' => [Application::ASSOC_TYPE_SUBMISSION_FILE]])
         );
 
-        // Get timeline data for views (abstract page)
         $viewsByMonth = $statsService->getTimeline(
             StatisticsHelper::STATISTICS_DIMENSION_MONTH,
             array_merge($baseParams, ['assocTypes' => [Application::ASSOC_TYPE_SUBMISSION]])
         );
 
-        // Convert to associative arrays for easier merging
         $downloadsAssoc = [];
         foreach ($downloadsByMonth as $item) {
             $downloadsAssoc[$item['date']] = $item['value'];
@@ -91,20 +66,17 @@ class StatisticsService extends BaseStatsService
             $viewsAssoc[$item['date']] = $item['value'];
         }
 
-        // Merge all months and sort chronologically
         $allMonths = array_unique(array_merge(
             array_keys($downloadsAssoc),
             array_keys($viewsAssoc)
         ));
         sort($allMonths);
 
-        // Build results in format expected by JavaScript frontend
         $results = [];
         foreach ($allMonths as $month) {
             $downloads = $downloadsAssoc[$month] ?? 0;
             $views = $viewsAssoc[$month] ?? 0;
 
-            // Format month label (e.g., "2024-01" -> "Jan 2024")
             $timestamp = strtotime($month . '-01');
             $label = date('M Y', $timestamp);
 
@@ -125,17 +97,6 @@ class StatisticsService extends BaseStatsService
         return $results;
     }
 
-    /**
-     * Get annual statistics.
-     *
-     * Returns download and view counts aggregated by year.
-     *
-     * @param int $contextId Journal/press ID
-     * @param string|null $dateStart Start date in Ymd format
-     * @param string|null $dateEnd End date in Ymd format
-     * @param int|null $minYear Minimum year to include (defaults to PublicStatsConstants::MIN_YEAR)
-     * @return array Annual statistics array
-     */
     public function getAnnualStats(
         int $contextId,
         ?string $dateStart = null,
@@ -151,7 +112,6 @@ class StatisticsService extends BaseStatsService
             'dateEnd' => $dateEnd ?? date('Ymd', strtotime('yesterday'))
         ];
 
-        // Get monthly data first, then aggregate
         $downloadsByMonth = $statsService->getTimeline(
             StatisticsHelper::STATISTICS_DIMENSION_MONTH,
             array_merge($baseParams, ['assocTypes' => [Application::ASSOC_TYPE_SUBMISSION_FILE]])
@@ -162,18 +122,15 @@ class StatisticsService extends BaseStatsService
             array_merge($baseParams, ['assocTypes' => [Application::ASSOC_TYPE_SUBMISSION]])
         );
 
-        // Aggregate by year
         $downloadsByYear = $this->aggregateByYear($downloadsByMonth, $minYear);
         $viewsByYear = $this->aggregateByYear($viewsByMonth, $minYear);
 
-        // Combine all years
         $allYears = array_unique(array_merge(
             array_keys($downloadsByYear),
             array_keys($viewsByYear)
         ));
         sort($allYears);
 
-        // Build results array
         $results = [];
         foreach ($allYears as $year) {
             $downloads = $downloadsByYear[$year] ?? 0;
@@ -239,13 +196,6 @@ class StatisticsService extends BaseStatsService
         }
     }
 
-    /**
-     * Aggregate monthly data by year.
-     *
-     * @param array $monthlyData Array of monthly records
-     * @param int $minYear Minimum year to include
-     * @return array Associative array of year => total
-     */
     private function aggregateByYear(array $monthlyData, int $minYear): array
     {
         $yearlyData = [];
@@ -267,12 +217,6 @@ class StatisticsService extends BaseStatsService
         return $yearlyData;
     }
 
-    /**
-     * Format country data with localized names.
-     *
-     * @param iterable $countriesData Raw country data from geo service
-     * @return array Possibly empty list of country rows
-     */
     private function formatCountryData(iterable $countriesData): array
     {
         $countryData = [];
@@ -282,7 +226,6 @@ class StatisticsService extends BaseStatsService
                 continue;
             }
 
-            // Validate ISO 3166-1 alpha-2 format
             $countryCode = (string)$total->country;
             if (strlen($countryCode) !== 2) {
                 continue;
