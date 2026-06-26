@@ -25,6 +25,7 @@ use APP\plugins\generic\publicStats\jobs\ComputeOpenAlexAggregateJob;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use PKP\submission\PKPSubmission;
+use PKP\userGroup\UserGroup;
 
 class OpenAlexService
 {
@@ -372,9 +373,7 @@ class OpenAlexService
 
         $journalCitations = [];
 
-        $userGroups = Repo::userGroup()->getCollector()
-            ->filterByContextIds([$contextId])
-            ->getMany();
+        $userGroups = UserGroup::withContextIds([$contextId])->get();
 
         foreach ($submissions as $submission) {
                 $publication = $submission->getCurrentPublication();
@@ -501,9 +500,7 @@ class OpenAlexService
 
         $institutionCitations = [];
 
-        $userGroups = Repo::userGroup()->getCollector()
-            ->filterByContextIds([$contextId])
-            ->getMany();
+        $userGroups = UserGroup::withContextIds([$contextId])->get();
 
         foreach ($submissions as $submission) {
                 $publication = $submission->getCurrentPublication();

@@ -26,6 +26,7 @@ use APP\core\Application;
 use APP\facades\Repo;
 use PKP\core\PKPRequest;
 use PKP\submission\PKPSubmission;
+use PKP\userGroup\UserGroup;
 use APP\plugins\generic\publicStats\classes\Logger;
 use APP\plugins\generic\publicStats\jobs\ComputeOpenAlexAggregateJob;
 use APP\plugins\generic\publicStats\services\OpenAlexService;
@@ -317,7 +318,7 @@ class EnrichedStatsService extends BaseStatsService
                     null,
                     'article',
                     'view',
-                    $bestId
+                    [$bestId]
                 );
             }
             unset($article['counts_by_year'], $article['bestId']);
@@ -343,9 +344,7 @@ class EnrichedStatsService extends BaseStatsService
         $accumulator = $state['accumulator'] ?? ['articles' => []];
 
         if (!empty($chunk['submissions'])) {
-            $userGroups = Repo::userGroup()->getCollector()
-                ->filterByContextIds([$contextId])
-                ->getMany();
+            $userGroups = UserGroup::withContextIds([$contextId])->get();
 
             foreach ($chunk['submissions'] as $submission) {
                 $publication = $submission->getCurrentPublication();
@@ -785,7 +784,7 @@ class EnrichedStatsService extends BaseStatsService
                             null,
                             'article',
                             'view',
-                            $article['bestId']
+                            [$article['bestId']]
                         )
                     ];
                 }
@@ -866,7 +865,7 @@ class EnrichedStatsService extends BaseStatsService
                             null,
                             'article',
                             'view',
-                            $article['bestId']
+                            [$article['bestId']]
                         )
                     ];
                 }
