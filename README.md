@@ -1,5 +1,7 @@
 # Public Statistics Plugin for OJS 3.4
 
+> Using OJS 3.5? See the [`stable-3_5_0`](../../tree/stable-3_5_0) branch.
+
 Public-facing statistics page for Open Journal Systems. Adds a dashboard with usage, editorial, geographic and OpenAlex-based impact metrics, available to every reader of your journal.
 
 ![Plugin Overview](screenshots/overview.png)
