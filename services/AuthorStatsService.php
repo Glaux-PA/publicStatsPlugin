@@ -52,7 +52,6 @@ class AuthorStatsService extends BaseStatsService
         $authorData = [
             'id'          => $authorIds[0],
             'fullName'    => $entry['name'],
-            'email'       => $entry['email'] ?? null,
             'affiliation' => $entry['affiliation'] ?? null,
             'country'     => $entry['country'] ?? null,
             'orcid'       => $entry['orcid'] ?? null,
@@ -193,7 +192,6 @@ class AuthorStatsService extends BaseStatsService
                     'key'             => $key,
                     'ids'             => implode(',', $authorData['ids']),
                     'name'            => $authorData['name'],
-                    'email'           => $authorData['email'],
                     'affiliation'     => $authorData['affiliation'],
                     'orcid'           => $authorData['orcid'],
                     'publicationCount' => $publicationCount
