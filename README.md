@@ -225,7 +225,10 @@ Every section has a CSV export button, with one exception: **Rejection rate** re
 
 ## Support
 
-For issues or feature requests, contact the plugin maintainer.
+For bugs and feature requests, open an issue at
+<https://github.com/Glaux-PA/publicStatsPlugin/issues>.
+
+The plugin is maintained by [Glaux Publicaciones Académicas](https://glaux.es/).
 
 ## For developers
 
@@ -282,7 +285,7 @@ This plugin was developed with the support of:
 
 &nbsp;
 
-<img src="screenshots/glaux.svg" alt="Glaux Publicaciones Académicas" height="60">
+<a href="https://glaux.es/"><img src="screenshots/glaux.svg" alt="Glaux Publicaciones Académicas" height="60"></a>
 
 **Glaux Publicaciones Académicas** designed and built the plugin.
 
