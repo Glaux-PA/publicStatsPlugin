@@ -60,6 +60,10 @@ class InputValidator
             return $default;
         }
 
+        if (is_string($limit) && !ctype_digit($limit)) {
+            return $default;
+        }
+
         $limitInt = (int)$limit;
 
         return max($min, min($max, $limitInt));
