@@ -44,6 +44,11 @@ class PublicStatsConstants
         'impact'    => 'plugins.generic.publicStats.settings.section.impact',
     ];
 
+    public const OPT_IN_SUBSECTIONS = [
+        'reviewer-list',
+        'author-individual-stats',
+    ];
+
     /** Subsections by group: content-section id => sidebar label key. Order = sidebar order. */
     public const SUBSECTIONS = [
         'general' => [

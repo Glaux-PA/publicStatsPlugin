@@ -163,6 +163,8 @@ Each subsection listed in [Usage](#usage) can be turned on or off independently:
 
 A disabled subsection is hidden from the sidebar and the page output, and its data is never queried. New subsections added in future plugin updates appear in the form the next time it is opened.
 
+Two subsections, **Reviewer list** and **Individual author statistics**, publish personal data (names, affiliations, countries) and come disabled. Enabling them is the journal's decision, and the journal is responsible for having the appropriate consent before doing so.
+
 ### Customization
 
 The interface color theme is configurable from the plugin settings. The chosen color applies to active sidebar items, the loading indicator, reset-zoom buttons, metric values, table links and export buttons. The form previews the four shades derived from your choice (light, primary, dark, darker).

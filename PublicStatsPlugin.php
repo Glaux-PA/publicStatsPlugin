@@ -168,7 +168,7 @@ class PublicStatsPlugin extends GenericPlugin
         $saved = $this->getSetting($contextId, 'enabledSubsections');
 
         if (!is_array($saved)) {
-            return $all;
+            return array_values(array_diff($all, PublicStatsConstants::OPT_IN_SUBSECTIONS));
         }
 
         $stillValid = array_values(array_intersect($saved, $all));
@@ -177,7 +177,7 @@ class PublicStatsPlugin extends GenericPlugin
             return $stillValid;
         }
 
-        $newlyAdded = array_values(array_diff($all, $known));
+        $newlyAdded = array_values(array_diff($all, $known, PublicStatsConstants::OPT_IN_SUBSECTIONS));
         return array_values(array_merge($stillValid, $newlyAdded));
     }
 
