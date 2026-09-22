@@ -46,13 +46,24 @@ trait CsvExportTrait
         // BOM for Excel UTF-8 compatibility.
         fprintf($output, chr(0xEF) . chr(0xBB) . chr(0xBF));
 
-        fputcsv($output, $headers);
+        fputcsv($output, array_map([$this, 'escapeCsvCell'], $headers));
         foreach ($rows as $row) {
-            fputcsv($output, $row);
+            fputcsv($output, array_map([$this, 'escapeCsvCell'], $row));
         }
 
         fclose($output);
         flush();
+    }
+
+    private function escapeCsvCell(mixed $value): string
+    {
+        $value = (string) $value;
+
+        if ($value !== '' && !is_numeric($value) && str_contains("=+-@\t\r", $value[0])) {
+            return "'" . $value;
+        }
+
+        return $value;
     }
 
     /**
