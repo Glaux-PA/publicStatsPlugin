@@ -570,7 +570,7 @@ class PublicStatisticsHandler extends Handler
         $templateMgr->addStyleSheet(
             'publicStatsStyles',
             $cssBase . '/styles.css',
-            ['contexts' => 'frontend']
+            ['contexts' => 'frontend', 'priority' => TemplateManager::STYLE_SEQUENCE_LAST]
         );
     }
 }
