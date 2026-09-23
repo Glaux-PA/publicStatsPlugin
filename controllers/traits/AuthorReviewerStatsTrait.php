@@ -33,7 +33,7 @@ trait AuthorReviewerStatsTrait
 
         try {
             $contextId = $context->getId();
-            $cacheKey = "authors_by_country_{$contextId}";
+            $cacheKey = $this->cacheKey("authors_by_country_{$contextId}");
             
             $data = Cache::remember(
                 $cacheKey,
@@ -59,7 +59,7 @@ trait AuthorReviewerStatsTrait
 
         try {
             $contextId = $context->getId();
-            $cacheKey = "authors_by_institution_{$contextId}";
+            $cacheKey = $this->cacheKey("authors_by_institution_{$contextId}");
             
             $data = Cache::remember(
                 $cacheKey,
@@ -85,7 +85,7 @@ trait AuthorReviewerStatsTrait
 
         try {
             $contextId = $context->getId();
-            $cacheKey = "reviewers_by_country_{$contextId}";
+            $cacheKey = $this->cacheKey("reviewers_by_country_{$contextId}");
             
             $data = Cache::remember(
                 $cacheKey,
@@ -111,7 +111,7 @@ trait AuthorReviewerStatsTrait
 
         try {
             $contextId = $context->getId();
-            $cacheKey = "reviewers_by_institution_{$contextId}";
+            $cacheKey = $this->cacheKey("reviewers_by_institution_{$contextId}");
             
             $data = Cache::remember(
                 $cacheKey,
@@ -139,7 +139,7 @@ trait AuthorReviewerStatsTrait
             $contextId = $context->getId();
             $year      = InputValidator::validateYear($request->getUserVar('year'));
             $yearInt   = $year !== null ? (int) $year : null;
-            $cacheKey  = "reviewer_list_{$contextId}_" . ($year ?? 'all');
+            $cacheKey  = $this->cacheKey("reviewer_list_{$contextId}_" . ($year ?? 'all'));
 
             $data = Cache::remember(
                 $cacheKey,
@@ -172,7 +172,7 @@ trait AuthorReviewerStatsTrait
                 max: 100
             );
             
-            $cacheKey = "authors_list_{$contextId}_{$minPublications}";
+            $cacheKey = $this->cacheKey("authors_list_{$contextId}_{$minPublications}");
             
             $data = Cache::remember(
                 $cacheKey,
@@ -209,13 +209,13 @@ trait AuthorReviewerStatsTrait
             $year = InputValidator::validateYear($request->getUserVar('year'));
             $dateRanges = $this->getDateRanges($year);
             
-            $cacheKey = sprintf(
+            $cacheKey = $this->cacheKey(sprintf(
                 "author_stats_%d_%s_%s_%s",
                 $contextId,
                 $authorKeySanitized,
                 $dateRanges['start'],
                 $dateRanges['end']
-            );
+            ));
             
             $data = Cache::remember(
                 $cacheKey,
@@ -249,7 +249,7 @@ trait AuthorReviewerStatsTrait
             $contextId = $context->getId();
             $minPublications = 1;
             
-            $cacheKey = "authors_list_stats_{$contextId}";
+            $cacheKey = $this->cacheKey("authors_list_stats_{$contextId}");
             
             $data = Cache::remember(
                 $cacheKey,

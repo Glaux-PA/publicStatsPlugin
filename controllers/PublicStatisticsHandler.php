@@ -25,6 +25,7 @@ use APP\handler\Handler;
 use APP\template\TemplateManager;
 use PKP\core\PKPRequest;
 use PKP\plugins\PluginRegistry;
+use PKP\facades\Locale;
 use APP\plugins\generic\publicStats\PublicStatsPlugin;
 use APP\plugins\generic\publicStats\classes\InputValidator;
 use APP\plugins\generic\publicStats\classes\Logger;
@@ -148,6 +149,11 @@ class PublicStatisticsHandler extends Handler
         return $this->plugin->getEnabledSubsections($contextId);
     }
 
+    private function cacheKey(string $key): string
+    {
+        return $key . '_' . Locale::getLocale();
+    }
+
     /**
      * Return the first enabled subsection id (following sidebar order).
      */
@@ -179,12 +185,12 @@ class PublicStatisticsHandler extends Handler
             $contextId = $context->getId();
             $dateRanges = $this->getDateRanges($year);
 
-            $cacheKey = sprintf(
+            $cacheKey = $this->cacheKey(sprintf(
                 'monthly_%d_%s_%s',
                 $contextId,
                 $dateRanges['start'],
                 $dateRanges['end']
-            );
+            ));
 
             $data = Cache::remember(
                 $cacheKey,
@@ -215,7 +221,7 @@ class PublicStatisticsHandler extends Handler
 
         $contextId = $context->getId();
 
-        $cacheKey = sprintf('annual_stats_%d', $contextId);
+        $cacheKey = $this->cacheKey(sprintf('annual_stats_%d', $contextId));
 
         try {
             $data = Cache::remember(
@@ -250,7 +256,7 @@ class PublicStatisticsHandler extends Handler
 
         try {
             $data = Cache::remember(
-                "country_data_{$contextId}",
+                $this->cacheKey("country_data_{$contextId}"),
                 PublicStatsConstants::CACHE_TTL_INTERNAL,
                 fn() => $this->statsService->getCountryStatistics($contextId)
             );
@@ -280,7 +286,7 @@ class PublicStatisticsHandler extends Handler
             ? (int) $issueIdRaw
             : null;
 
-        $cacheKey = sprintf('language_stats_%d_%s', $contextId, $issueId ?? 'all');
+        $cacheKey = $this->cacheKey(sprintf('language_stats_%d_%s', $contextId, $issueId ?? 'all'));
 
         try {
             $data = Cache::remember(
@@ -307,7 +313,7 @@ class PublicStatisticsHandler extends Handler
         if (!$this->requireSubsection('language-trends', $context)) return;
 
         $contextId = $context->getId();
-        $cacheKey = "language_trends_{$contextId}";
+        $cacheKey = $this->cacheKey("language_trends_{$contextId}");
 
         try {
             $data = Cache::remember(

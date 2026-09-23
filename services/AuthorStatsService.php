@@ -27,6 +27,7 @@ use APP\facades\Repo;
 use APP\plugins\generic\publicStats\classes\PublicStatsConstants;
 use Illuminate\Support\Facades\Cache;
 use PKP\core\PKPRequest;
+use PKP\facades\Locale;
 use PKP\submission\PKPSubmission;
 use PKP\userGroup\UserGroup;
 
@@ -115,7 +116,7 @@ class AuthorStatsService extends BaseStatsService
     private function buildAuthorMap(int $contextId): array
     {
         return Cache::remember(
-            "author_map_{$contextId}",
+            "author_map_{$contextId}_" . Locale::getLocale(),
             PublicStatsConstants::CACHE_TTL_INTERNAL * 6,
             fn() => $this->buildAuthorMapUncached($contextId)
         );
@@ -585,7 +586,7 @@ class AuthorStatsService extends BaseStatsService
     private function getSectionsMap(int $contextId): array
     {
         return Cache::remember(
-            "author_sections_map_{$contextId}",
+            "author_sections_map_{$contextId}_" . Locale::getLocale(),
             PublicStatsConstants::CACHE_TTL_INTERNAL * 24,
             function () use ($contextId) {
                 $map = [];

@@ -36,12 +36,12 @@ trait EditorialStatsTrait
             $year = InputValidator::validateYear($request->getUserVar('year'));
             $dateRanges = $this->getDateRanges($year);
 
-            $cacheKey = sprintf(
+            $cacheKey = $this->cacheKey(sprintf(
                 "editorial_%d_%s_%s",
                 $contextId,
                 $dateRanges['start'],
                 $dateRanges['end']
-            );
+            ));
             
             $data = Cache::remember(
                 $cacheKey,
@@ -71,7 +71,7 @@ trait EditorialStatsTrait
 
         try {
             $contextId = $context->getId();
-            $cacheKey = "editorial_annual_{$contextId}";
+            $cacheKey = $this->cacheKey("editorial_annual_{$contextId}");
             
             $data = Cache::remember(
                 $cacheKey,
@@ -100,12 +100,12 @@ trait EditorialStatsTrait
             $year = InputValidator::validateYear($request->getUserVar('year'));
             $dateRanges = $this->getDateRanges($year);
 
-            $cacheKey = sprintf(
+            $cacheKey = $this->cacheKey(sprintf(
                 "first_decision_%d_%s_%s",
                 $contextId,
                 $dateRanges['start'],
                 $dateRanges['end']
-            );
+            ));
             
             $data = Cache::remember(
                 $cacheKey,
@@ -138,12 +138,12 @@ trait EditorialStatsTrait
             $year = InputValidator::validateYear($request->getUserVar('year'));
             $dateRanges = $this->getDateRanges($year);
 
-            $cacheKey = sprintf(
+            $cacheKey = $this->cacheKey(sprintf(
                 "acceptance_publication_%d_%s_%s",
                 $contextId,
                 $dateRanges['start'],
                 $dateRanges['end']
-            );
+            ));
             
             $data = Cache::remember(
                 $cacheKey,
