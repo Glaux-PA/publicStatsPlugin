@@ -74,6 +74,15 @@ class EnrichedStatsService extends BaseStatsService
      */
     private function readOrAdvanceChunked(string $type, int $contextId): array
     {
+        $result = $this->openAlexService->getResult($type, $contextId);
+        if ($result !== null) {
+            if ($this->openAlexService->isResultStale($result)) {
+                $this->openAlexService->refreshAggregate($type, $contextId);
+            }
+
+            return ['__complete__' => true, 'accumulator' => $result['data']];
+        }
+
         $state = $this->openAlexService->getChunkedState($type, $contextId);
 
         if ($state === null) {

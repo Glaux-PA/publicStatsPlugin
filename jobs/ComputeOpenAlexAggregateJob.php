@@ -85,6 +85,8 @@ class ComputeOpenAlexAggregateJob extends BaseJob
                 $data,
                 OpenAlexService::aggregateCacheTtl()
             );
+
+            $openAlexService->putResult($this->type, $this->contextId, $data);
         } finally {
             Cache::forget(OpenAlexService::lockKeyFor($this->type, $this->contextId));
         }
@@ -128,6 +130,12 @@ class ComputeOpenAlexAggregateJob extends BaseJob
 
         if (empty($newState['is_complete'])) {
             $openAlexService->dispatchNextChunk($this->type, $this->contextId);
+
+            return;
+        }
+
+        if (is_array($newState['accumulator'] ?? null)) {
+            $openAlexService->putResult($this->type, $this->contextId, $newState['accumulator']);
         }
     }
 
