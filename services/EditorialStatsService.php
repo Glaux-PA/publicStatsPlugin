@@ -18,8 +18,8 @@ declare(strict_types=1);
 namespace APP\plugins\generic\publicStats\services;
 
 use APP\facades\Repo;
+use Illuminate\Support\Facades\DB;
 use PKP\submission\PKPSubmission;
-use APP\submission\Submission;
 use PKP\decision\Decision;
 use APP\plugins\generic\publicStats\classes\PublicStatsConstants;
 use APP\plugins\generic\publicStats\services\BaseStatsService;
@@ -48,7 +48,7 @@ class EditorialStatsService extends BaseStatsService
         $submissions = $this->getAllSubmissions($contextId, $dateStart, $dateEnd);
 
         $decisionsBySubmission = $this->getDecisionsForSubmissions(
-            array_map(fn($s) => $s->getId(), $submissions)
+            array_map(fn($s) => (int) $s->submissionId, $submissions)
         );
 
         foreach ($submissions as $submission) {
@@ -67,7 +67,7 @@ class EditorialStatsService extends BaseStatsService
         $submissions = $this->getAllSubmissions($contextId, "{$startYear}-01-01", "{$endYear}-12-31");
 
         $decisionsBySubmission = $this->getDecisionsForSubmissions(
-            array_map(fn($s) => $s->getId(), $submissions)
+            array_map(fn($s) => (int) $s->submissionId, $submissions)
         );
 
         foreach ($submissions as $submission) {
@@ -138,19 +138,16 @@ class EditorialStatsService extends BaseStatsService
         ?string $dateStart = null,
         ?string $dateEnd = null
     ): array {
-        $collector = Repo::submission()
-            ->getCollector()
-            ->filterByContextIds([$contextId]);
+        $query = DB::table('submissions as s')
+            ->leftJoin('publications as p', 'p.publication_id', '=', 's.current_publication_id')
+            ->where('s.context_id', $contextId)
+            ->select([
+                's.submission_id as submissionId',
+                's.status as status',
+                's.date_submitted as dateSubmitted',
+                'p.date_published as datePublished',
+            ]);
 
-        if ($dateStart === null && $dateEnd === null) {
-            $submissions = [];
-            foreach ($collector->getMany() as $submission) {
-                $submissions[] = $submission;
-            }
-            return $submissions;
-        }
-
-        $query = $collector->getQueryBuilder();
         if ($dateStart !== null) {
             $query->where('s.date_submitted', '>=', date('Y-m-d 00:00:00', strtotime($dateStart)));
         }
@@ -158,11 +155,7 @@ class EditorialStatsService extends BaseStatsService
             $query->where('s.date_submitted', '<=', date('Y-m-d 23:59:59', strtotime($dateEnd)));
         }
 
-        $submissions = [];
-        foreach ($query->get() as $row) {
-            $submissions[] = Repo::submission()->dao->fromRow($row);
-        }
-        return $submissions;
+        return $query->orderByDesc('s.date_submitted')->get()->all();
     }
 
     /**
@@ -195,13 +188,13 @@ class EditorialStatsService extends BaseStatsService
     }
 
     private function processSubmission(
-        Submission $submission,
+        object $submission,
         array &$monthlyStats,
         int $startTime,
         int $endTime,
         array $decisionsBySubmission = []
     ): void {
-        $dateSubmitted = $submission->getData('dateSubmitted');
+        $dateSubmitted = $submission->dateSubmitted;
         if (!$dateSubmitted) {
             return;
         }
@@ -219,7 +212,7 @@ class EditorialStatsService extends BaseStatsService
 
         $monthlyStats[$monthKey]['received']++;
 
-        $status = $submission->getData('status');
+        $status = (int) $submission->status;
 
         if ($status === PKPSubmission::STATUS_PUBLISHED) {
             $this->processPublished($submission, $monthlyStats, $startTime, $endTime);
@@ -227,7 +220,7 @@ class EditorialStatsService extends BaseStatsService
         }
 
         if ($status === PKPSubmission::STATUS_DECLINED) {
-            $decisions = $decisionsBySubmission[$submission->getId()] ?? [];
+            $decisions = $decisionsBySubmission[(int) $submission->submissionId] ?? [];
             $this->processDeclined($monthlyStats, $startTime, $endTime, $decisions);
             return;
         }
@@ -238,18 +231,13 @@ class EditorialStatsService extends BaseStatsService
     }
 
     private function processPublished(
-        Submission $submission,
+        object $submission,
         array &$monthlyStats,
         int $startTime,
         int $endTime
     ): void {
         // Visible publication, not latest draft.
-        $publication = $submission->getCurrentPublication();
-        if (!$publication) {
-            return;
-        }
-
-        $datePublished = $publication->getData('datePublished');
+        $datePublished = $submission->datePublished;
         if (!$datePublished) {
             return;
         }
@@ -301,13 +289,13 @@ class EditorialStatsService extends BaseStatsService
     }
 
     private function processSubmissionAnnual(
-        Submission $submission,
+        object $submission,
         array &$annualStats,
         int $startYear,
         int $endYear,
         array $decisionsBySubmission = []
     ): void {
-        $dateSubmitted = $submission->getData('dateSubmitted');
+        $dateSubmitted = $submission->dateSubmitted;
         if (!$dateSubmitted) {
             return;
         }
@@ -324,7 +312,7 @@ class EditorialStatsService extends BaseStatsService
 
         $annualStats[$submissionYear]['received']++;
 
-        $status = $submission->getData('status');
+        $status = (int) $submission->status;
 
         if ($status === PKPSubmission::STATUS_PUBLISHED) {
             $this->processPublishedAnnual($submission, $annualStats, $startYear, $endYear);
@@ -332,7 +320,7 @@ class EditorialStatsService extends BaseStatsService
         }
 
         if ($status === PKPSubmission::STATUS_DECLINED) {
-            $decisions = $decisionsBySubmission[$submission->getId()] ?? [];
+            $decisions = $decisionsBySubmission[(int) $submission->submissionId] ?? [];
             $this->processDeclinedAnnual($annualStats, $submissionYear, $decisions);
             return;
         }
@@ -343,18 +331,13 @@ class EditorialStatsService extends BaseStatsService
     }
 
     private function processPublishedAnnual(
-        Submission $submission,
+        object $submission,
         array &$annualStats,
         int $startYear,
         int $endYear
     ): void {
         // Visible publication, not latest draft.
-        $publication = $submission->getCurrentPublication();
-        if (!$publication) {
-            return;
-        }
-
-        $datePublished = $publication->getData('datePublished');
+        $datePublished = $submission->datePublished;
         if (!$datePublished) {
             return;
         }
