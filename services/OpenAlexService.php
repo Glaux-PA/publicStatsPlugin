@@ -151,6 +151,45 @@ class OpenAlexService
         return PublicStatsConstants::CACHE_TTL_EXTERNAL;
     }
 
+    public static function resultKeyFor(string $type, int $contextId): string
+    {
+        return "openalex_result_{$type}_{$contextId}";
+    }
+
+    public function getResult(string $type, int $contextId): ?array
+    {
+        $result = Cache::get(self::resultKeyFor($type, $contextId));
+
+        return is_array($result) && array_key_exists('data', $result) ? $result : null;
+    }
+
+    public function putResult(string $type, int $contextId, mixed $data): void
+    {
+        Cache::put(
+            self::resultKeyFor($type, $contextId),
+            ['data' => $data, 'computed_at' => time()],
+            PublicStatsConstants::CACHE_TTL_RESULT
+        );
+    }
+
+    public function isResultStale(array $result): bool
+    {
+        return (time() - (int) ($result['computed_at'] ?? 0)) > PublicStatsConstants::CACHE_TTL_EXTERNAL;
+    }
+
+    public function refreshAggregate(string $type, int $contextId): bool
+    {
+        $lockKey = self::lockKeyFor($type, $contextId);
+        if (!Cache::add($lockKey, 1, 300)) {
+            return false;
+        }
+
+        Cache::forget(self::cacheKeyFor($type, $contextId));
+        ComputeOpenAlexAggregateJob::dispatch($contextId, $type);
+
+        return true;
+    }
+
     /**
      * Return cached aggregate data if present; otherwise enqueue the
      * background job (locked to prevent duplicate dispatch) and return the
@@ -162,6 +201,15 @@ class OpenAlexService
         $cached = Cache::get($cacheKey);
         if ($cached !== null) {
             return $cached;
+        }
+
+        $result = $this->getResult($type, $contextId);
+        if ($result !== null) {
+            if ($this->isResultStale($result)) {
+                $this->refreshAggregate($type, $contextId);
+            }
+
+            return $result['data'];
         }
 
         // Cache::add is atomic, so concurrent callers skip dispatch.

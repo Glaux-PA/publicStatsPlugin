@@ -28,6 +28,8 @@ class PublicStatsConstants
     /** Cache TTL for OpenAlex aggregates (7 days). */
     public const CACHE_TTL_EXTERNAL = 604800;
 
+    public const CACHE_TTL_RESULT = 2592000;
+
     /**
      * Submissions processed per chunked OpenAlex job invocation.
      * Sized for async workers (~30-60s per chunk). Drop to 50 if jobs run inline.
