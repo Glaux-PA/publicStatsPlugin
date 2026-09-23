@@ -20,6 +20,7 @@ namespace APP\plugins\generic\publicStats;
 
 use PKP\plugins\GenericPlugin;
 use PKP\plugins\Hook;
+use PKP\facades\Locale;
 use PKP\core\JSONMessage;
 use PKP\linkAction\LinkAction;
 use PKP\linkAction\request\AjaxModal;
@@ -40,9 +41,29 @@ class PublicStatsPlugin extends GenericPlugin
             Hook::add('NavigationMenus::itemTypes', [$this, 'addMenuItemType']);
             Hook::add('NavigationMenus::displaySettings', [$this, 'addMenuItemTypeSettings']);
             Hook::add('LoadHandler', [$this, 'loadHandler']);
+            Hook::add('Locale::translate', [$this, 'translateWithEnglishFallback']);
         }
 
         return $success;
+    }
+
+    public function translateWithEnglishFallback(string $hookName, array $args): bool
+    {
+        $value = &$args[0];
+        $key = $args[1];
+        $params = $args[2];
+        $number = $args[3];
+        $locale = $args[4];
+
+        if ($value !== null || $locale === 'en' || !str_starts_with($key, 'plugins.generic.publicStats.')) {
+            return false;
+        }
+
+        $value = $number === null
+            ? Locale::get($key, $params, 'en')
+            : Locale::choice($key, $number, $params, 'en');
+
+        return true;
     }
 
     /** @copydoc Plugin::getDisplayName() */
