@@ -37,12 +37,12 @@ trait ArticleStatsTrait
             $contextId = $context->getId();
             $dateRanges = $this->getDateRanges($year);
             
-            $cacheKey = sprintf(
+            $cacheKey = $this->cacheKey(sprintf(
                 "top_downloaded_%d_%s_%s",
                 $contextId,
                 $dateRanges['start'],
                 $dateRanges['end']
-            );
+            ));
             
             $data = Cache::remember(
                 $cacheKey,
@@ -78,12 +78,12 @@ trait ArticleStatsTrait
             $contextId = $context->getId();
             $dateRanges = $this->getDateRanges($year);
             
-            $cacheKey = sprintf(
+            $cacheKey = $this->cacheKey(sprintf(
                 "top_viewed_%d_%s_%s",
                 $contextId,
                 $dateRanges['start'],
                 $dateRanges['end']
-            );
+            ));
             
             $data = Cache::remember(
                 $cacheKey,
@@ -115,7 +115,7 @@ trait ArticleStatsTrait
 
         try {
             $contextId = $context->getId();
-            $cacheKey = "recent_downloaded_{$contextId}";
+            $cacheKey = $this->cacheKey("recent_downloaded_{$contextId}");
             
             $data = Cache::remember(
                 $cacheKey,
@@ -145,7 +145,7 @@ trait ArticleStatsTrait
 
         try {
             $contextId = $context->getId();
-            $cacheKey = "recent_viewed_{$contextId}";
+            $cacheKey = $this->cacheKey("recent_viewed_{$contextId}");
             
             $data = Cache::remember(
                 $cacheKey,
@@ -179,12 +179,12 @@ trait ArticleStatsTrait
             $contextId = $context->getId();
             $dateRanges = $this->getDateRanges($year);
             
-            $cacheKey = sprintf(
+            $cacheKey = $this->cacheKey(sprintf(
                 "issues_%d_%s_%s",
                 $contextId,
                 $dateRanges['start'],
                 $dateRanges['end']
-            );
+            ));
             
             $data = Cache::remember(
                 $cacheKey,
@@ -219,12 +219,12 @@ trait ArticleStatsTrait
             $contextId = $context->getId();
             $dateRanges = $this->getDateRanges($year);
             
-            $cacheKey = sprintf(
+            $cacheKey = $this->cacheKey(sprintf(
                 "sections_%d_%s_%s",
                 $contextId,
                 $dateRanges['start'],
                 $dateRanges['end']
-            );
+            ));
             
             $data = Cache::remember(
                 $cacheKey,
@@ -254,7 +254,7 @@ trait ArticleStatsTrait
 
         try {
             $contextId = $context->getId();
-            $cacheKey = "sections_list_{$contextId}";
+            $cacheKey = $this->cacheKey("sections_list_{$contextId}");
             
             $data = Cache::remember(
                 $cacheKey,

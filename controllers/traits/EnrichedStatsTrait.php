@@ -32,7 +32,7 @@ trait EnrichedStatsTrait
 
         try {
             $contextId = $context->getId();
-            $cacheKey = "total_enriched_{$contextId}";
+            $cacheKey = $this->cacheKey("total_enriched_{$contextId}");
 
             // Cache::remember would freeze any is_computing placeholder, so read manually.
             $data = Cache::get($cacheKey);
@@ -60,7 +60,7 @@ trait EnrichedStatsTrait
 
         try {
             $contextId = $context->getId();
-            $cacheKey = "external_citations_{$contextId}";
+            $cacheKey = $this->cacheKey("external_citations_{$contextId}");
 
             // Cache::remember would pin the is_computing placeholder.
             $data = Cache::get($cacheKey);
@@ -259,7 +259,7 @@ trait EnrichedStatsTrait
 
         try {
             $contextId = $context->getId();
-            $cacheKey  = "citations_by_country_{$contextId}";
+            $cacheKey  = $this->cacheKey("citations_by_country_{$contextId}");
 
             // Manual get/put: skip the cache when the service returns is_computing.
             $data = Cache::get($cacheKey);
@@ -288,7 +288,7 @@ trait EnrichedStatsTrait
 
         try {
             $contextId = $context->getId();
-            $cacheKey = "citing_journals_{$contextId}";
+            $cacheKey = $this->cacheKey("citing_journals_{$contextId}");
 
             // Manual get/put: skip the cache when the service returns is_computing.
             $data = Cache::get($cacheKey);
@@ -317,7 +317,7 @@ trait EnrichedStatsTrait
 
         try {
             $contextId = $context->getId();
-            $cacheKey = "citing_institutions_{$contextId}";
+            $cacheKey = $this->cacheKey("citing_institutions_{$contextId}");
 
             $data = Cache::get($cacheKey);
             if ($data === null) {
