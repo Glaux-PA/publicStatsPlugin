@@ -288,7 +288,7 @@ trait EnrichedStatsTrait
 
         try {
             $contextId = $context->getId();
-            $cacheKey = "citing_journals_{$contextId}";
+            $cacheKey = $this->cacheKey("citing_journals_{$contextId}");
 
             // Manual get/put: skip the cache when the service returns is_computing.
             $data = Cache::get($cacheKey);
@@ -317,7 +317,7 @@ trait EnrichedStatsTrait
 
         try {
             $contextId = $context->getId();
-            $cacheKey = "citing_institutions_{$contextId}";
+            $cacheKey = $this->cacheKey("citing_institutions_{$contextId}");
 
             $data = Cache::get($cacheKey);
             if ($data === null) {

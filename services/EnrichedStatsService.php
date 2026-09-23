@@ -24,6 +24,8 @@ namespace APP\plugins\generic\publicStats\services;
 
 use APP\core\Application;
 use APP\facades\Repo;
+use Illuminate\Support\Facades\DB;
+use PKP\facades\Locale;
 use PKP\core\PKPRequest;
 use PKP\submission\PKPSubmission;
 use PKP\userGroup\UserGroup;
@@ -318,7 +320,10 @@ class EnrichedStatsService extends BaseStatsService
         // The job has no PKPRequest, so URLs are built here.
         $dispatcher = $request->getDispatcher();
         $sliced = array_slice($articles, 0, $limit);
+        $titles = $this->resolveTitles(array_column($sliced, 'submissionId'));
+
         foreach ($sliced as &$article) {
+            $article['title'] = $titles[(int) ($article['submissionId'] ?? 0)] ?? $article['title'] ?? '';
             $bestId = $article['bestId'] ?? $article['submissionId'] ?? null;
             if ($bestId !== null) {
                 $article['urlPublished'] = $dispatcher->url(
@@ -756,6 +761,57 @@ class EnrichedStatsService extends BaseStatsService
         return $state;
     }
 
+    private function collectArticleIds(array $groups): array
+    {
+        $ids = [];
+        foreach ($groups as $group) {
+            foreach ($group['cited_articles'] ?? [] as $article) {
+                $ids[] = $article['id'] ?? null;
+            }
+        }
+
+        return $ids;
+    }
+    private function resolveTitles(array $submissionIds): array
+    {
+        $submissionIds = array_values(array_unique(array_filter(array_map('intval', $submissionIds))));
+        if (empty($submissionIds)) {
+            return [];
+        }
+
+        $locale = Locale::getLocale();
+
+        $rows = DB::table('submissions as s')
+            ->join('publications as p', 'p.publication_id', '=', 's.current_publication_id')
+            ->join('publication_settings as ps', function ($join) {
+                $join->on('ps.publication_id', '=', 'p.publication_id')
+                    ->where('ps.setting_name', '=', 'title');
+            })
+            ->whereIn('s.submission_id', $submissionIds)
+            ->select('s.submission_id', 's.locale as submission_locale', 'ps.locale', 'ps.setting_value')
+            ->get();
+
+        $titles = [];
+        foreach ($rows as $row) {
+            $value = trim((string) $row->setting_value);
+            if ($value === '') {
+                continue;
+            }
+
+            $rank = match (true) {
+                $row->locale === $locale => 3,
+                $row->locale === $row->submission_locale => 2,
+                default => 1,
+            };
+
+            $id = (int) $row->submission_id;
+            if (($titles[$id]['rank'] ?? 0) < $rank) {
+                $titles[$id] = ['rank' => $rank, 'title' => $value];
+            }
+        }
+
+        return array_map(fn($entry) => $entry['title'], $titles);
+    }
     public function getCitingJournals(PKPRequest $request, int $contextId): ?array
     {
         try {
@@ -772,6 +828,9 @@ class EnrichedStatsService extends BaseStatsService
             $formattedData = [];
             $allYears = [];
             
+            $titles = $this->resolveTitles($this->collectArticleIds($journals));
+
+            
             foreach ($journals as $journal) {
                 $citedArticles = [];
                 foreach ($journal['cited_articles'] ?? [] as $article) {
@@ -782,7 +841,7 @@ class EnrichedStatsService extends BaseStatsService
                     
                     $citedArticles[] = [
                         'id' => $article['id'],
-                        'title' => $article['title'],
+                        'title' => $titles[(int) $article['id']] ?? $article['title'],
                         'authors' => $article['authors'],
                         'year' => $article['year'],
                         'citation_year' => $citationYear,
@@ -841,6 +900,9 @@ class EnrichedStatsService extends BaseStatsService
             $formattedData = [];
             $allYears = [];
             
+            $titles = $this->resolveTitles($this->collectArticleIds($institutions));
+
+            
             foreach ($institutions as $institution) {
                 $countryCode = $institution['country_code'] ?? null;
                 $countryName = null;
@@ -863,7 +925,7 @@ class EnrichedStatsService extends BaseStatsService
                     
                     $citedArticles[] = [
                         'id' => $article['id'],
-                        'title' => $article['title'],
+                        'title' => $titles[(int) $article['id']] ?? $article['title'],
                         'authors' => $article['authors'],
                         'year' => $article['year'],
                         'citation_year' => $citationYear,
