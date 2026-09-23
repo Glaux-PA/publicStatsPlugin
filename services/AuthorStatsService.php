@@ -26,6 +26,7 @@ use APP\core\Application;
 use APP\facades\Repo;
 use APP\plugins\generic\publicStats\classes\PublicStatsConstants;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use PKP\core\PKPRequest;
 use PKP\facades\Locale;
 use PKP\submission\PKPSubmission;
@@ -122,19 +123,38 @@ class AuthorStatsService extends BaseStatsService
         );
     }
 
+    private function getPublishedPublicationMap(int $contextId): array
+    {
+        return DB::table('submissions as s')
+            ->join('publications as p', 'p.publication_id', '=', 's.current_publication_id')
+            ->where('s.context_id', $contextId)
+            ->where('s.status', PKPSubmission::STATUS_PUBLISHED)
+            ->orderByDesc('s.date_submitted')
+            ->pluck('s.submission_id', 'p.publication_id')
+            ->toArray();
+    }
+
     private function buildAuthorMapUncached(int $contextId): array
     {
-        $submissions = $this->getPublishedSubmissions($contextId);
+        $submissionIdByPublication = $this->getPublishedPublicationMap($contextId);
         $authorMap = [];
 
-        foreach ($submissions as $submission) {
-            $publication = $submission->getCurrentPublication();
-            if (!$publication) continue;
+        if (!empty($submissionIdByPublication)) {
+            $position = array_flip(array_keys($submissionIdByPublication));
+            $authors = [];
+            $collector = Repo::author()->getCollector()
+                ->filterByPublicationIds(array_keys($submissionIdByPublication));
 
-            $authors = $publication->getData('authors');
-            if (!$authors) continue;
+            foreach ($collector->getMany() as $author) {
+                $publicationId = $author->getData('publicationId');
+                $submissionId = $submissionIdByPublication[$publicationId] ?? null;
+                if (!$submissionId) continue;
+                $authors[] = [$position[$publicationId], (float) $author->getData('seq'), $submissionId, $author];
+            }
 
-            foreach ($authors as $author) {
+            usort($authors, fn($a, $b) => [$a[0], $a[1]] <=> [$b[0], $b[1]]);
+
+            foreach ($authors as [$order, $seq, $submissionId, $author]) {
                 $key = $this->createAuthorKey($author);
 
                 if (!isset($authorMap[$key])) {
@@ -153,8 +173,8 @@ class AuthorStatsService extends BaseStatsService
                     $authorMap[$key]['ids'][] = $author->getId();
                 }
 
-                if (!in_array($submission->getId(), $authorMap[$key]['submissionIds'])) {
-                    $authorMap[$key]['submissionIds'][] = $submission->getId();
+                if (!in_array($submissionId, $authorMap[$key]['submissionIds'])) {
+                    $authorMap[$key]['submissionIds'][] = $submissionId;
                 }
 
                 if (strlen($author->getFullName()) > strlen($authorMap[$key]['name'])) {
