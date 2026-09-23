@@ -6,17 +6,17 @@
   --ps-primary-rgb: 139, 38, 53;
 }
 
-.page_statistics *:not([class*="leaflet-"]),
-.page_statistics *:not([class*="leaflet-"])::before,
-.page_statistics *:not([class*="leaflet-"])::after {
+.page_statistics :where(*:not([class*="leaflet-"])),
+.page_statistics :where(*:not([class*="leaflet-"]))::before,
+.page_statistics :where(*:not([class*="leaflet-"]))::after {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
-.page_statistics *:not([class*="fa-"]):not([class*="leaflet-"]),
-.page_statistics *:not([class*="fa-"]):not([class*="leaflet-"])::before,
-.page_statistics *:not([class*="fa-"]):not([class*="leaflet-"])::after {
+.page_statistics :where(*:not([class*="fa-"]):not([class*="leaflet-"])),
+.page_statistics :where(*:not([class*="fa-"]):not([class*="leaflet-"]))::before,
+.page_statistics :where(*:not([class*="fa-"]):not([class*="leaflet-"]))::after {
   font-family: inherit;
   letter-spacing: inherit;
   text-transform: none;
