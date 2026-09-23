@@ -704,6 +704,11 @@ class EnrichedStatsService extends BaseStatsService
 
         $accumulator = $state['accumulator'] ?? ['country_counts' => []];
 
+        $this->openAlexService->warmCitingWorksForDois(array_map(
+            fn($submission) => $submission->getCurrentPublication()?->getDoi(),
+            $chunk['submissions']
+        ));
+
         foreach ($chunk['submissions'] as $submission) {
             $publication = $submission->getCurrentPublication();
             if (!$publication) continue;

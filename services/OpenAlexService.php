@@ -28,6 +28,10 @@ use PKP\submission\PKPSubmission;
 
 class OpenAlexService
 {
+    private const CITING_BATCH_SIZE = 50;
+
+    private const CITING_BATCH_MAX_PAGES = 25;
+
     private const API_BASE = 'https://api.openalex.org';
     private ?string $contactEmail;
 
@@ -350,9 +354,95 @@ class OpenAlexService
         ];
     }
     
+    public function warmCitingWorksForDois(array $dois): void
+    {
+        $ids = [];
+        foreach ($dois as $doi) {
+            if (!$doi) {
+                continue;
+            }
+
+            $work = $this->getWorkByDOI($doi);
+            if ($work && !empty($work['id'])) {
+                $ids[] = $work['id'];
+            }
+        }
+
+        $this->warmCitingWorks($ids);
+    }
+
+    public function warmCitingWorks(array $openalexIds): void
+    {
+        $pending = [];
+        foreach (array_unique($openalexIds) as $id) {
+            if (Cache::get($this->citingCacheKey($id)) === null) {
+                $pending[] = $id;
+            }
+        }
+
+        foreach (array_chunk($pending, self::CITING_BATCH_SIZE) as $chunk) {
+            $this->fetchCitingWorksBatch($chunk);
+        }
+    }
+
+    private function fetchCitingWorksBatch(array $openalexIds): void
+    {
+        $shortIds = [];
+        foreach ($openalexIds as $id) {
+            $shortIds[] = basename((string) $id);
+        }
+
+        $citingByWork = array_fill_keys($openalexIds, []);
+        $cursor = '*';
+
+        for ($page = 0; $page < self::CITING_BATCH_MAX_PAGES; $page++) {
+            usleep(PublicStatsConstants::OPENALEX_RATE_LIMIT_DELAY);
+
+            $body = $this->httpGetWithRetry(
+                self::API_BASE . '/works',
+                [
+                    'filter' => 'cites:' . implode('|', $shortIds),
+                    'per_page' => 200,
+                    'cursor' => $cursor,
+                ],
+                20,
+                'citing batch of ' . count($shortIds) . ' works, page ' . ($page + 1)
+            );
+
+            if ($body === null) {
+                return;
+            }
+
+            foreach ($body['results'] ?? [] as $citingWork) {
+                foreach ($citingWork['referenced_works'] ?? [] as $referenced) {
+                    if (isset($citingByWork[$referenced])) {
+                        $citingByWork[$referenced][] = $citingWork;
+                    }
+                }
+            }
+
+            $cursor = $body['meta']['next_cursor'] ?? null;
+            if (!$cursor) {
+                foreach ($citingByWork as $id => $results) {
+                    Cache::put(
+                        $this->citingCacheKey((string) $id),
+                        $results,
+                        PublicStatsConstants::CACHE_TTL_EXTERNAL
+                    );
+                }
+
+                return;
+            }
+        }
+    }
+
+    private function citingCacheKey(string $openalexId): string
+    {
+        return "openalex_citing_paginated_" . md5($openalexId);
+    }
     public function getCitingWorks(string $openalexId): array
     {
-        $cacheKey = "openalex_citing_paginated_" . md5($openalexId);
+        $cacheKey = $this->citingCacheKey($openalexId);
 
         $cached = Cache::get($cacheKey);
         if ($cached !== null) {
@@ -424,6 +514,10 @@ class OpenAlexService
             ->filterByContextIds([$contextId])
             ->getMany();
 
+        $this->warmCitingWorksForDois(array_map(
+            fn($submission) => $submission->getCurrentPublication()?->getDoi(),
+            iterator_to_array($submissions)
+        ));
         foreach ($submissions as $submission) {
                 $publication = $submission->getCurrentPublication();
                 if (!$publication) continue;
@@ -553,6 +647,10 @@ class OpenAlexService
             ->filterByContextIds([$contextId])
             ->getMany();
 
+        $this->warmCitingWorksForDois(array_map(
+            fn($submission) => $submission->getCurrentPublication()?->getDoi(),
+            iterator_to_array($submissions)
+        ));
         foreach ($submissions as $submission) {
                 $publication = $submission->getCurrentPublication();
                 if (!$publication) continue;
