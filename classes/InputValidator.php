@@ -160,6 +160,6 @@ class InputValidator
 
     public static function sanitizeForCacheKey(string $value): string
     {
-        return preg_replace('/[^a-zA-Z0-9_]/', '_', $value);
+        return substr(sha1($value), 0, 20);
     }
 }

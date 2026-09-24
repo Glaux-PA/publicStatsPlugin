@@ -24,7 +24,7 @@ use APP\plugins\generic\publicStats\classes\PublicStatsConstants;
 
 abstract class BaseStatsService
 {
-    protected function cachedOnce(string $key, int $ttl, callable $compute): mixed
+    protected function cachedOnce(string $key, int $ttl, callable $compute, ?callable $shouldCache = null): mixed
     {
         $cached = Cache::get($key);
         if ($cached !== null) {
@@ -36,7 +36,9 @@ abstract class BaseStatsService
         if (Cache::add($lockKey, 1, PublicStatsConstants::CACHE_LOCK_TTL)) {
             try {
                 $value = $compute();
-                Cache::put($key, $value, $ttl);
+                if ($shouldCache === null || $shouldCache($value)) {
+                    Cache::put($key, $value, $ttl);
+                }
             } finally {
                 Cache::forget($lockKey);
             }

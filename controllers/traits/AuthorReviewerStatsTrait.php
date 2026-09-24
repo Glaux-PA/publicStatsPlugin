@@ -226,7 +226,8 @@ trait AuthorReviewerStatsTrait
                     $authorKey,
                     $dateRanges['start'],
                     $dateRanges['end']
-                )
+                ),
+                fn($data) => ($data['author'] ?? null) !== null
             );
             
             $this->outputJson($data);
