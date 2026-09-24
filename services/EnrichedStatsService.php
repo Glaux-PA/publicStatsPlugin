@@ -704,6 +704,8 @@ class EnrichedStatsService extends BaseStatsService
 
         $accumulator = $state['accumulator'] ?? ['country_counts' => []];
 
+        $failed = 0;
+
         $this->openAlexService->warmCitingWorksForDois(array_map(
             fn($submission) => $submission->getCurrentPublication()?->getDoi(),
             $chunk['submissions']
@@ -719,6 +721,14 @@ class EnrichedStatsService extends BaseStatsService
             if (!$work || empty($work['id'])) continue;
 
             $citingWorks = $this->openAlexService->getCitingWorks($work['id']);
+            if ($citingWorks === null) {
+                $failed++;
+                if ($failed > PublicStatsConstants::MAX_CITING_FAILURES) {
+                    throw new \RuntimeException('OpenAlex unavailable: ' . $failed . ' failed citing lookups');
+                }
+
+                continue;
+            }
 
             foreach ($citingWorks as $citingWork) {
                 if (empty($citingWork['authorships'])) continue;

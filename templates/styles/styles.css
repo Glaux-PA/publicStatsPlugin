@@ -569,8 +569,8 @@
   background: linear-gradient(135deg, #28a745 0%, #20883a 100%);
   color: white;
   border: none;
-  padding: 4px 12px;
-  line-height: 1.2;
+  padding: 6px 14px;
+  line-height: 1.35;
   border-radius: 4px;
   font-size: 0.85rem;
   cursor: pointer;
