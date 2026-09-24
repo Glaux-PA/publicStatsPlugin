@@ -21,42 +21,12 @@ use APP\facades\Repo;
 use PKP\submission\PKPSubmission;
 use Illuminate\Support\Facades\Cache;
 use APP\plugins\generic\publicStats\classes\PublicStatsConstants;
+use APP\plugins\generic\publicStats\classes\CachesOnce;
 
 abstract class BaseStatsService
 {
-    protected function cachedOnce(string $key, int $ttl, callable $compute, ?callable $shouldCache = null): mixed
-    {
-        $cached = Cache::get($key);
-        if ($cached !== null) {
-            return $cached;
-        }
+    use CachesOnce;
 
-        $lockKey = $key . '_lock';
-
-        if (Cache::add($lockKey, 1, PublicStatsConstants::CACHE_LOCK_TTL)) {
-            try {
-                $value = $compute();
-                if ($shouldCache === null || $shouldCache($value)) {
-                    Cache::put($key, $value, $ttl);
-                }
-            } finally {
-                Cache::forget($lockKey);
-            }
-
-            return $value;
-        }
-
-        for ($i = 0; $i < PublicStatsConstants::CACHE_LOCK_WAIT_TRIES; $i++) {
-            usleep(PublicStatsConstants::CACHE_LOCK_WAIT_DELAY);
-
-            $cached = Cache::get($key);
-            if ($cached !== null) {
-                return $cached;
-            }
-        }
-
-        return $compute();
-    }
     protected function getPublishedSubmissions(int $contextId): iterable
     {
         return Repo::submission()
