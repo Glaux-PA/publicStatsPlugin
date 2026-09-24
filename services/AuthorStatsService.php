@@ -116,7 +116,7 @@ class AuthorStatsService extends BaseStatsService
      */
     private function buildAuthorMap(int $contextId): array
     {
-        return Cache::remember(
+        return $this->cachedOnce(
             "author_map_{$contextId}_" . Locale::getLocale(),
             PublicStatsConstants::CACHE_TTL_INTERNAL * 6,
             fn() => $this->buildAuthorMapUncached($contextId)
@@ -605,7 +605,7 @@ class AuthorStatsService extends BaseStatsService
      */
     private function getSectionsMap(int $contextId): array
     {
-        return Cache::remember(
+        return $this->cachedOnce(
             "author_sections_map_{$contextId}_" . Locale::getLocale(),
             PublicStatsConstants::CACHE_TTL_INTERNAL * 24,
             function () use ($contextId) {

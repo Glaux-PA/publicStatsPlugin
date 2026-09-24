@@ -35,7 +35,7 @@ trait AuthorReviewerStatsTrait
             $contextId = $context->getId();
             $cacheKey = $this->cacheKey("authors_by_country_{$contextId}");
             
-            $data = Cache::remember(
+            $data = $this->cachedOnce(
                 $cacheKey,
                 PublicStatsConstants::CACHE_TTL_INTERNAL * 2,
                 fn() => $this->authorReviewerService->getAuthorsByCountry($contextId)
@@ -61,7 +61,7 @@ trait AuthorReviewerStatsTrait
             $contextId = $context->getId();
             $cacheKey = $this->cacheKey("authors_by_institution_{$contextId}");
             
-            $data = Cache::remember(
+            $data = $this->cachedOnce(
                 $cacheKey,
                 PublicStatsConstants::CACHE_TTL_INTERNAL * 2,
                 fn() => $this->authorReviewerService->getAuthorsByInstitution($contextId)
@@ -87,7 +87,7 @@ trait AuthorReviewerStatsTrait
             $contextId = $context->getId();
             $cacheKey = $this->cacheKey("reviewers_by_country_{$contextId}");
             
-            $data = Cache::remember(
+            $data = $this->cachedOnce(
                 $cacheKey,
                 PublicStatsConstants::CACHE_TTL_INTERNAL * 2,
                 fn() => $this->authorReviewerService->getReviewersByCountry($contextId)
@@ -113,7 +113,7 @@ trait AuthorReviewerStatsTrait
             $contextId = $context->getId();
             $cacheKey = $this->cacheKey("reviewers_by_institution_{$contextId}");
             
-            $data = Cache::remember(
+            $data = $this->cachedOnce(
                 $cacheKey,
                 PublicStatsConstants::CACHE_TTL_INTERNAL * 2,
                 fn() => $this->authorReviewerService->getReviewersByInstitution($contextId)
@@ -141,7 +141,7 @@ trait AuthorReviewerStatsTrait
             $yearInt   = $year !== null ? (int) $year : null;
             $cacheKey  = $this->cacheKey("reviewer_list_{$contextId}_" . ($year ?? 'all'));
 
-            $data = Cache::remember(
+            $data = $this->cachedOnce(
                 $cacheKey,
                 PublicStatsConstants::CACHE_TTL_INTERNAL * 2,
                 fn() => $this->authorReviewerService->getReviewerList($contextId, $yearInt)
@@ -174,7 +174,7 @@ trait AuthorReviewerStatsTrait
             
             $cacheKey = $this->cacheKey("authors_list_{$contextId}_{$minPublications}");
             
-            $data = Cache::remember(
+            $data = $this->cachedOnce(
                 $cacheKey,
                 PublicStatsConstants::CACHE_TTL_INTERNAL * 2,
                 fn() => $this->authorStatsService->getAuthorsForContext($contextId, $minPublications)
@@ -217,7 +217,7 @@ trait AuthorReviewerStatsTrait
                 $dateRanges['end']
             ));
             
-            $data = Cache::remember(
+            $data = $this->cachedOnce(
                 $cacheKey,
                 PublicStatsConstants::CACHE_TTL_INTERNAL,
                 fn() => $this->authorStatsService->getAuthorStats(
@@ -251,7 +251,7 @@ trait AuthorReviewerStatsTrait
             
             $cacheKey = $this->cacheKey("authors_list_stats_{$contextId}");
             
-            $data = Cache::remember(
+            $data = $this->cachedOnce(
                 $cacheKey,
                 PublicStatsConstants::CACHE_TTL_INTERNAL * 24,
                 fn() => $this->authorStatsService->getAuthorsForContext($contextId, $minPublications)

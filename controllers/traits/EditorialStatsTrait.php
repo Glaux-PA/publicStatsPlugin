@@ -43,7 +43,7 @@ trait EditorialStatsTrait
                 $dateRanges['end']
             ));
             
-            $data = Cache::remember(
+            $data = $this->cachedOnce(
                 $cacheKey,
                 PublicStatsConstants::CACHE_TTL_INTERNAL,
                 fn() => $this->editorialService->getStats(
@@ -73,7 +73,7 @@ trait EditorialStatsTrait
             $contextId = $context->getId();
             $cacheKey = $this->cacheKey("editorial_annual_{$contextId}");
             
-            $data = Cache::remember(
+            $data = $this->cachedOnce(
                 $cacheKey,
                 PublicStatsConstants::CACHE_TTL_INTERNAL,
                 fn() => $this->editorialService->getAnnualStats($contextId)
@@ -107,7 +107,7 @@ trait EditorialStatsTrait
                 $dateRanges['end']
             ));
             
-            $data = Cache::remember(
+            $data = $this->cachedOnce(
                 $cacheKey,
                 PublicStatsConstants::CACHE_TTL_INTERNAL * 2,
                 fn() => $this->decisionService->getFirstDecisionStats(
@@ -145,7 +145,7 @@ trait EditorialStatsTrait
                 $dateRanges['end']
             ));
             
-            $data = Cache::remember(
+            $data = $this->cachedOnce(
                 $cacheKey,
                 PublicStatsConstants::CACHE_TTL_INTERNAL * 2,
                 fn() => $this->decisionService->getAcceptancePublicationStats(

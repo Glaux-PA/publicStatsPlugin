@@ -44,7 +44,7 @@ trait ArticleStatsTrait
                 $dateRanges['end']
             ));
             
-            $data = Cache::remember(
+            $data = $this->cachedOnce(
                 $cacheKey,
                 PublicStatsConstants::CACHE_TTL_INTERNAL,
                 fn() => $this->articleService->getTopDownloadedArticles(
@@ -85,7 +85,7 @@ trait ArticleStatsTrait
                 $dateRanges['end']
             ));
             
-            $data = Cache::remember(
+            $data = $this->cachedOnce(
                 $cacheKey,
                 PublicStatsConstants::CACHE_TTL_INTERNAL,
                 fn() => $this->articleService->getTopViewedArticles(
@@ -117,7 +117,7 @@ trait ArticleStatsTrait
             $contextId = $context->getId();
             $cacheKey = $this->cacheKey("recent_downloaded_{$contextId}");
             
-            $data = Cache::remember(
+            $data = $this->cachedOnce(
                 $cacheKey,
                 PublicStatsConstants::CACHE_TTL_INTERNAL / 2, // 30 minutes
                 fn() => $this->articleService->getRecentTopDownloadedArticles(
@@ -147,7 +147,7 @@ trait ArticleStatsTrait
             $contextId = $context->getId();
             $cacheKey = $this->cacheKey("recent_viewed_{$contextId}");
             
-            $data = Cache::remember(
+            $data = $this->cachedOnce(
                 $cacheKey,
                 PublicStatsConstants::CACHE_TTL_INTERNAL / 2,
                 fn() => $this->articleService->getRecentTopViewedArticles(
@@ -186,7 +186,7 @@ trait ArticleStatsTrait
                 $dateRanges['end']
             ));
             
-            $data = Cache::remember(
+            $data = $this->cachedOnce(
                 $cacheKey,
                 PublicStatsConstants::CACHE_TTL_INTERNAL,
                 fn() => $this->issueService->getIssueStats(
@@ -226,7 +226,7 @@ trait ArticleStatsTrait
                 $dateRanges['end']
             ));
             
-            $data = Cache::remember(
+            $data = $this->cachedOnce(
                 $cacheKey,
                 PublicStatsConstants::CACHE_TTL_INTERNAL,
                 fn() => $this->sectionService->getSectionStats(
@@ -256,7 +256,7 @@ trait ArticleStatsTrait
             $contextId = $context->getId();
             $cacheKey = $this->cacheKey("sections_list_{$contextId}");
             
-            $data = Cache::remember(
+            $data = $this->cachedOnce(
                 $cacheKey,
                 PublicStatsConstants::CACHE_TTL_INTERNAL * 24,
                 function() use ($contextId) {
