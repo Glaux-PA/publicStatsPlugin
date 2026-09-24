@@ -153,7 +153,7 @@ class PublicStatisticsHandler extends Handler
     {
         return $key . '_' . Locale::getLocale();
     }
-    private function cachedOnce(string $key, int $ttl, callable $compute): mixed
+    private function cachedOnce(string $key, int $ttl, callable $compute, ?callable $shouldCache = null): mixed
     {
         $cached = Cache::get($key);
         if ($cached !== null) {
@@ -165,7 +165,9 @@ class PublicStatisticsHandler extends Handler
         if (Cache::add($lockKey, 1, PublicStatsConstants::CACHE_LOCK_TTL)) {
             try {
                 $value = $compute();
-                Cache::put($key, $value, $ttl);
+                if ($shouldCache === null || $shouldCache($value)) {
+                    Cache::put($key, $value, $ttl);
+                }
             } finally {
                 Cache::forget($lockKey);
             }
