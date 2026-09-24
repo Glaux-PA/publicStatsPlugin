@@ -30,6 +30,8 @@ trait EnrichedStatsTrait
             return;
         }
 
+        if (!$this->requireAnySubsection(array_keys(PublicStatsConstants::SUBSECTIONS['impact']), $context)) return;
+
         try {
             $contextId = $context->getId();
             $cacheKey = "total_enriched_{$contextId}";
@@ -57,6 +59,8 @@ trait EnrichedStatsTrait
             $this->outputError('Context not found', 404);
             return;
         }
+
+        if (!$this->requireAnySubsection(array_keys(PublicStatsConstants::SUBSECTIONS['impact']), $context)) return;
 
         try {
             $contextId = $context->getId();

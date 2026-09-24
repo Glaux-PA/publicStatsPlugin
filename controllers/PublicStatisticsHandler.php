@@ -30,6 +30,7 @@ use APP\plugins\generic\publicStats\PublicStatsPlugin;
 use APP\plugins\generic\publicStats\classes\InputValidator;
 use APP\plugins\generic\publicStats\classes\Logger;
 use APP\plugins\generic\publicStats\classes\PublicStatsConstants;
+use APP\plugins\generic\publicStats\classes\CachesOnce;
 use APP\plugins\generic\publicStats\classes\ColorHelper;
 use APP\plugins\generic\publicStats\services\StatisticsService;
 use APP\plugins\generic\publicStats\services\ArticleStatsService;
@@ -52,6 +53,7 @@ use Illuminate\Support\Facades\Cache;
 
 class PublicStatisticsHandler extends Handler
 {
+    use CachesOnce;
     use ArticleStatsTrait;
     use EditorialStatsTrait;
     use AuthorReviewerStatsTrait;
@@ -166,40 +168,6 @@ class PublicStatisticsHandler extends Handler
 
         return true;
     }
-    private function cachedOnce(string $key, int $ttl, callable $compute, ?callable $shouldCache = null): mixed
-    {
-        $cached = Cache::get($key);
-        if ($cached !== null) {
-            return $cached;
-        }
-
-        $lockKey = $key . '_lock';
-
-        if (Cache::add($lockKey, 1, PublicStatsConstants::CACHE_LOCK_TTL)) {
-            try {
-                $value = $compute();
-                if ($shouldCache === null || $shouldCache($value)) {
-                    Cache::put($key, $value, $ttl);
-                }
-            } finally {
-                Cache::forget($lockKey);
-            }
-
-            return $value;
-        }
-
-        for ($i = 0; $i < PublicStatsConstants::CACHE_LOCK_WAIT_TRIES; $i++) {
-            usleep(PublicStatsConstants::CACHE_LOCK_WAIT_DELAY);
-
-            $cached = Cache::get($key);
-            if ($cached !== null) {
-                return $cached;
-            }
-        }
-
-        return $compute();
-    }
-
     /**
      * Return the first enabled subsection id (following sidebar order).
      */
