@@ -30,6 +30,12 @@ class PublicStatsConstants
 
     public const CACHE_TTL_RESULT = 2592000;
 
+    public const CACHE_LOCK_TTL = 180;
+
+    public const CACHE_LOCK_WAIT_TRIES = 20;
+
+    public const CACHE_LOCK_WAIT_DELAY = 500000;
+
     /**
      * Submissions processed per chunked OpenAlex job invocation.
      * Sized for async workers (~30-60s per chunk). Drop to 50 if jobs run inline.

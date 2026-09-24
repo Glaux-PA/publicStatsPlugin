@@ -153,6 +153,37 @@ class PublicStatisticsHandler extends Handler
     {
         return $key . '_' . Locale::getLocale();
     }
+    private function cachedOnce(string $key, int $ttl, callable $compute): mixed
+    {
+        $cached = Cache::get($key);
+        if ($cached !== null) {
+            return $cached;
+        }
+
+        $lockKey = $key . '_lock';
+
+        if (Cache::add($lockKey, 1, PublicStatsConstants::CACHE_LOCK_TTL)) {
+            try {
+                $value = $compute();
+                Cache::put($key, $value, $ttl);
+            } finally {
+                Cache::forget($lockKey);
+            }
+
+            return $value;
+        }
+
+        for ($i = 0; $i < PublicStatsConstants::CACHE_LOCK_WAIT_TRIES; $i++) {
+            usleep(PublicStatsConstants::CACHE_LOCK_WAIT_DELAY);
+
+            $cached = Cache::get($key);
+            if ($cached !== null) {
+                return $cached;
+            }
+        }
+
+        return $compute();
+    }
 
     /**
      * Return the first enabled subsection id (following sidebar order).
@@ -192,7 +223,7 @@ class PublicStatisticsHandler extends Handler
                 $dateRanges['end']
             ));
 
-            $data = Cache::remember(
+            $data = $this->cachedOnce(
                 $cacheKey,
                 PublicStatsConstants::CACHE_TTL_INTERNAL,
                 fn() => $this->statsService->getMonthlyStats(
@@ -224,7 +255,7 @@ class PublicStatisticsHandler extends Handler
         $cacheKey = $this->cacheKey(sprintf('annual_stats_%d', $contextId));
 
         try {
-            $data = Cache::remember(
+            $data = $this->cachedOnce(
                 $cacheKey,
                 PublicStatsConstants::CACHE_TTL_INTERNAL,
                 fn() => $this->statsService->getAnnualStats(
@@ -255,7 +286,7 @@ class PublicStatisticsHandler extends Handler
         $contextId = $context->getId();
 
         try {
-            $data = Cache::remember(
+            $data = $this->cachedOnce(
                 $this->cacheKey("country_data_{$contextId}"),
                 PublicStatsConstants::CACHE_TTL_INTERNAL,
                 fn() => $this->statsService->getCountryStatistics($contextId)
@@ -289,7 +320,7 @@ class PublicStatisticsHandler extends Handler
         $cacheKey = $this->cacheKey(sprintf('language_stats_%d_%s', $contextId, $issueId ?? 'all'));
 
         try {
-            $data = Cache::remember(
+            $data = $this->cachedOnce(
                 $cacheKey,
                 PublicStatsConstants::CACHE_TTL_INTERNAL,
                 fn() => $this->languageStatsService->getLanguageStats($contextId, $issueId)
@@ -316,7 +347,7 @@ class PublicStatisticsHandler extends Handler
         $cacheKey = $this->cacheKey("language_trends_{$contextId}");
 
         try {
-            $data = Cache::remember(
+            $data = $this->cachedOnce(
                 $cacheKey,
                 PublicStatsConstants::CACHE_TTL_INTERNAL,
                 fn() => $this->languageStatsService->getLanguageTrends($contextId)
