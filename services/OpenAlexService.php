@@ -29,6 +29,8 @@ use PKP\userGroup\UserGroup;
 
 class OpenAlexService
 {
+    private const WORK_NOT_FOUND = '__not_found__';
+
     private const MAX_CITING_FAILURES = 10;
 
     private const CITING_BATCH_SIZE = 50;
@@ -313,10 +315,9 @@ class OpenAlexService
 
         $cacheKey = "openalex_work_" . md5($doi);
 
-        // Cache::remember would pin a transient null for the full TTL.
         $cached = Cache::get($cacheKey);
         if ($cached !== null) {
-            return $cached;
+            return $cached === self::WORK_NOT_FOUND ? null : $cached;
         }
 
         usleep(PublicStatsConstants::OPENALEX_RATE_LIMIT_DELAY);
@@ -329,7 +330,10 @@ class OpenAlexService
 
         if ($work !== null) {
             Cache::put($cacheKey, $work, PublicStatsConstants::CACHE_TTL_EXTERNAL);
+        } else {
+            Cache::put($cacheKey, self::WORK_NOT_FOUND, PublicStatsConstants::CACHE_TTL_INTERNAL);
         }
+
         return $work;
     }
     
