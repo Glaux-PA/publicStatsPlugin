@@ -30,6 +30,8 @@ class PublicStatsConstants
 
     public const CACHE_TTL_RESULT = 2592000;
 
+    public const MAX_CITING_FAILURES = 10;
+
     public const CACHE_LOCK_TTL = 180;
 
     public const CACHE_LOCK_WAIT_TRIES = 20;

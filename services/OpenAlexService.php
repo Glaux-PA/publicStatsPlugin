@@ -29,6 +29,8 @@ use PKP\userGroup\UserGroup;
 
 class OpenAlexService
 {
+    private const MAX_CITING_FAILURES = 10;
+
     private const CITING_BATCH_SIZE = 50;
 
     private const CITING_BATCH_MAX_PAGES = 25;
@@ -441,7 +443,7 @@ class OpenAlexService
     {
         return "openalex_citing_paginated_" . md5($openalexId);
     }
-    public function getCitingWorks(string $openalexId): array
+    public function getCitingWorks(string $openalexId): ?array
     {
         $cacheKey = $this->citingCacheKey($openalexId);
 
@@ -476,10 +478,12 @@ class OpenAlexService
             if (!$cursor) break;
         }
 
-        // Don't cache a partial traversal.
-        if (!$anyFailed) {
-            Cache::put($cacheKey, $results, PublicStatsConstants::CACHE_TTL_EXTERNAL);
+        if ($anyFailed) {
+            return null;
         }
+
+        Cache::put($cacheKey, $results, PublicStatsConstants::CACHE_TTL_EXTERNAL);
+
         return $results;
     }
     
@@ -513,6 +517,8 @@ class OpenAlexService
 
         $userGroups = UserGroup::withContextIds([$contextId])->get();
 
+        $failed = 0;
+
         $this->warmCitingWorksForDois(array_map(
             fn($submission) => $submission->getCurrentPublication()?->getDoi(),
             iterator_to_array($submissions)
@@ -529,6 +535,14 @@ class OpenAlexService
                 
                 $openalexId = $work['id'];
                 $citingWorks = $this->getCitingWorks($openalexId);
+                if ($citingWorks === null) {
+                    $failed++;
+                    if ($failed > self::MAX_CITING_FAILURES) {
+                        throw new \RuntimeException('OpenAlex unavailable: ' . $failed . ' failed citing lookups');
+                    }
+
+                    continue;
+                }
                 
                 $datePublished = $publication->getData('datePublished');
                 $articleInfo = [
@@ -644,6 +658,8 @@ class OpenAlexService
 
         $userGroups = UserGroup::withContextIds([$contextId])->get();
 
+        $failed = 0;
+
         $this->warmCitingWorksForDois(array_map(
             fn($submission) => $submission->getCurrentPublication()?->getDoi(),
             iterator_to_array($submissions)
@@ -660,6 +676,14 @@ class OpenAlexService
                 
                 $openalexId = $work['id'];
                 $citingWorks = $this->getCitingWorks($openalexId);
+                if ($citingWorks === null) {
+                    $failed++;
+                    if ($failed > self::MAX_CITING_FAILURES) {
+                        throw new \RuntimeException('OpenAlex unavailable: ' . $failed . ' failed citing lookups');
+                    }
+
+                    continue;
+                }
                 
                 $datePublished = $publication->getData('datePublished');
                 $articleInfo = [
