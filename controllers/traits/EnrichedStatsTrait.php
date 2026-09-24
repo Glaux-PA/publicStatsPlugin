@@ -129,6 +129,10 @@ trait EnrichedStatsTrait
         }
         if (!$this->requireSubsection('top-cited', $context)) return;
 
+        if (!$this->withinRateLimit($request, 'timeline', PublicStatsConstants::TIMELINE_RATE_LIMIT)) {
+            return;
+        }
+
         $submissionId = InputValidator::validateSubmissionId($request, $request->getUserVar('submissionId'));
         if (!$submissionId) {
             $this->outputError('Invalid or unauthorized submission ID', 400);

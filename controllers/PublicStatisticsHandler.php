@@ -153,6 +153,19 @@ class PublicStatisticsHandler extends Handler
     {
         return $key . '_' . Locale::getLocale();
     }
+    private function withinRateLimit(PKPRequest $request, string $bucket, int $max): bool
+    {
+        $key = 'ps_rate_' . $bucket . '_' . md5((string) $request->getRemoteAddr());
+
+        Cache::add($key, 0, 60);
+        if ((int) Cache::increment($key) > $max) {
+            $this->outputError('Too many requests. Please try again later.', 429);
+
+            return false;
+        }
+
+        return true;
+    }
     private function cachedOnce(string $key, int $ttl, callable $compute, ?callable $shouldCache = null): mixed
     {
         $cached = Cache::get($key);

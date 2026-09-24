@@ -20,6 +20,7 @@ namespace APP\plugins\generic\publicStats\classes;
 use APP\plugins\generic\publicStats\classes\PublicStatsConstants;
 use Illuminate\Support\Facades\DB;
 use PKP\core\PKPRequest;
+use PKP\submission\PKPSubmission;
 use APP\facades\Repo;
 
 class InputValidator
@@ -114,6 +115,10 @@ class InputValidator
         $submission = Repo::submission()->get($submissionIdInt);
 
         if (!$submission || $submission->getData('contextId') !== $contextId) {
+            return null;
+        }
+
+        if ((int) $submission->getData('status') !== PKPSubmission::STATUS_PUBLISHED) {
             return null;
         }
 
