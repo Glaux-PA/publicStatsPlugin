@@ -1672,7 +1672,7 @@
                             </div>
                             <div class="card-body">
                                 <div id="authorAvgDownloads"
-                                    style="text-align: center; font-size: 36px; font-weight: bold; color: #ff6b6b;">
+                                    style="text-align: center; font-size: 48px; font-weight: bold; color: #ff6b6b;">
                                     {* Populated by JavaScript *}
                                 </div>
                             </div>
@@ -1686,7 +1686,7 @@
                             </div>
                             <div class="card-body">
                                 <div id="authorAvgViews"
-                                    style="text-align: center; font-size: 36px; font-weight: bold; color: #45b7d1;">
+                                    style="text-align: center; font-size: 48px; font-weight: bold; color: #45b7d1;">
                                     {* Populated by JavaScript *}
                                 </div>
                             </div>

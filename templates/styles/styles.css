@@ -38,12 +38,32 @@
   text-decoration: none;
 }
 
-.page_statistics h2,
-.page_statistics h3,
-.page_statistics h4 {
-  font-weight: 600;
-  text-transform: none;
+.page_statistics :is(h1, h2, h3, h4, h5, h6, p, li, th, td, label) {
+  margin: 0;
+  padding: 0;
   border: 0;
+  background: none;
+  box-shadow: none;
+  text-shadow: none;
+  text-transform: none;
+  text-align: inherit;
+  letter-spacing: inherit;
+  font-family: inherit;
+  font-style: normal;
+  line-height: inherit;
+  color: inherit;
+}
+
+.page_statistics :is(h1, h2, h3, h4, h5, h6) {
+  font-size: inherit;
+  font-weight: 600;
+}
+
+.page_statistics :is(button, select, input, label) {
+  margin: 0;
+  text-transform: none;
+  letter-spacing: inherit;
+  font-size: inherit;
 }
 
 .page_statistics table {
@@ -67,7 +87,6 @@
   font-size: 16px;
   line-height: 1.5;
   letter-spacing: normal;
-  background-color: #f8f9fa;
   color: #333;
 }
 
@@ -1021,12 +1040,13 @@
 @container publicstats (max-width: 992px) {
   .page_statistics .container {
     flex-direction: column;
+    padding: 24px 12px 24px;
   }
 
   .page_statistics .sidebar {
     width: 100%;
     margin-top: 0;
-    margin-bottom: 20px;
+    margin-bottom: 12px;
   }
 
   .page_statistics .sidebar-header {
@@ -1084,7 +1104,6 @@
   }
 
   .page_statistics .main-content {
-    padding: 15px;
     margin: 0;
   }
   .page_statistics .content-title {
@@ -1217,6 +1236,10 @@
     padding: 6px;
   }
 
+  #citingJournalsTable {
+    min-width: 420px;
+  }
+
   .page_statistics .map-legend {
     font-size: 10px;
     gap: 8px;
@@ -1235,18 +1258,29 @@
   #rejectionRateSummary {
     grid-template-columns: 1fr !important;
   }
+
+  #first-decision-stats .stats-grid,
+  #acceptance-publication-stats .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  #first-decision-stats .stats-grid > .stats-card,
+  #acceptance-publication-stats .stats-grid > .stats-card {
+    grid-column: auto !important;
+  }
 }
 
 @supports not (container-type: inline-size) {
   @media (max-width: 992px) {
   .page_statistics .container {
     flex-direction: column;
+    padding: 24px 12px 24px;
   }
 
   .page_statistics .sidebar {
     width: 100%;
     margin-top: 0;
-    margin-bottom: 20px;
+    margin-bottom: 12px;
   }
 
   .page_statistics .sidebar-header {
@@ -1304,7 +1338,6 @@
   }
 
   .page_statistics .main-content {
-    padding: 15px;
     margin: 0;
   }
   .page_statistics .content-title {
@@ -1437,6 +1470,10 @@
     padding: 6px;
   }
 
+  #citingJournalsTable {
+    min-width: 420px;
+  }
+
   .page_statistics .map-legend {
     font-size: 10px;
     gap: 8px;
@@ -1454,6 +1491,16 @@
   #editorialAnnualSummary,
   #rejectionRateSummary {
     grid-template-columns: 1fr !important;
+  }
+
+  #first-decision-stats .stats-grid,
+  #acceptance-publication-stats .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  #first-decision-stats .stats-grid > .stats-card,
+  #acceptance-publication-stats .stats-grid > .stats-card {
+    grid-column: auto !important;
   }
 }
 }
