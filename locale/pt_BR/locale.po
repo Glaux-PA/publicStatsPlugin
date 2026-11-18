@@ -49,7 +49,7 @@ msgid "plugins.generic.publicStats.annualActivity"
 msgstr "Atividade anual"
 
 msgid "plugins.generic.publicStats.annualContributions"
-msgstr "Contribuições anuais"
+msgstr "Submissões anuais"
 
 msgid "plugins.generic.publicStats.annualOverview"
 msgstr "Visão geral anual"
@@ -442,7 +442,7 @@ msgid "plugins.generic.publicStats.loadingStats"
 msgstr "Carregando estatísticas..."
 
 msgid "plugins.generic.publicStats.monthlyContributions"
-msgstr "Contribuições mensais"
+msgstr "Submissões mensais"
 
 msgid "plugins.generic.publicStats.monthlyOverview"
 msgstr "Visão geral mensal"
